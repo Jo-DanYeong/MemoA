@@ -53,7 +53,7 @@ public class ScheduleEntity {
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "schedule_materials", joinColumns = @JoinColumn(name = "schedule_id"))
     @Column(name = "material", length = 120)
-    private List<String> materials = new ArrayList<>();
+    private List<String> preparations = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
@@ -101,7 +101,7 @@ public class ScheduleEntity {
     public LocalDate getDueDate() { return dueDate; }
     public LocalTime getDueTime() { return dueTime; }
     public String getLocation() { return location; }
-    public List<String> getMaterials() { return materials; }
+    public List<String> getPreparations() { return preparations; }
     public SourceType getSourceType() { return sourceType; }
     public ScheduleStatus getStatus() { return status; }
     public double getConfidence() { return confidence; }
@@ -115,14 +115,14 @@ public class ScheduleEntity {
         this.dueDate = request.dueDate();
         this.dueTime = request.dueTime();
         this.location = blankToNull(request.location());
-        this.materials.clear();
-        if (request.materials() != null) {
-            request.materials().stream()
+        this.preparations.clear();
+        if (request.preparations() != null) {
+            request.preparations().stream()
                 .map(String::trim)
                 .filter(item -> !item.isBlank())
                 .distinct()
                 .limit(20)
-                .forEach(this.materials::add);
+                .forEach(this.preparations::add);
         }
         this.sourceType = request.sourceType() == null ? SourceType.DIRECT : request.sourceType();
         this.status = request.status() == null ? ScheduleStatus.TODO : request.status();
@@ -141,4 +141,5 @@ public class ScheduleEntity {
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
+
 }
