@@ -86,7 +86,7 @@ export function SettingsScreen({session, onLogout}: Props) {
           <SettingRow icon="↗" subtitle="직접 입력하거나 memoa://capture 링크로 가져와요" title="iPhone 메시지 가져오기" />
         )}
         <View style={styles.separator} />
-        <SettingRow icon="⌁" subtitle="원본 메시지는 일정 데이터에 저장하지 않아요" title="메시지 개인정보 보호" />
+        <SettingRow icon="⌁" subtitle="확인한 해석 결과만 일정 데이터로 저장해요" title="메시지 개인정보 보호" />
       </View>
 
       <Text style={styles.sectionLabel}>일정과 알림</Text>
@@ -100,7 +100,7 @@ export function SettingsScreen({session, onLogout}: Props) {
         <Text style={styles.privacyMark}>M</Text>
         <View style={styles.privacyCopy}>
           <Text style={styles.privacyTitle}>Privacy by design</Text>
-          <Text style={styles.privacyBody}>일정에 꼭 필요한 제목, 날짜, 시간, 준비물만 저장하도록 설계했습니다.</Text>
+          <Text style={styles.privacyBody}>일정에 필요한 제목, 설명, 날짜, 시간, 장소와 준비 사항만 저장하도록 설계했습니다.</Text>
         </View>
       </View>
 
