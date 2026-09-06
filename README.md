@@ -1,6 +1,6 @@
 # MemoA
 
-MemoA는 카카오톡, 문자, 이메일 등에 포함된 과제·약속·준비물·마감 정보를 분석해 일정으로 정리하는 Android/iOS 앱입니다. 사용자는 AI 분석 결과를 확인하고 수정한 뒤 저장할 수 있으며, Android에서는 알림과 텍스트 공유를 통해 일정 후보를 가져올 수 있습니다.
+MemoA는 카카오톡, 문자, 이메일 등에 포함된 과제·약속·준비물·마감 정보를 분석해 일정으로 정리하는 Android 앱입니다. 사용자는 AI 분석 결과를 확인하고 수정한 뒤 저장할 수 있으며, Android 알림과 텍스트 공유를 통해 일정 후보를 가져올 수 있습니다.
 
 ## 주요 기능
 
@@ -37,7 +37,6 @@ MemoA는 카카오톡, 문자, 이메일 등에 포함된 과제·약속·준비
 | --- | --- |
 | 모바일 앱 | React Native 0.86, Expo SDK 57, TypeScript |
 | Android 네이티브 | Java, NotificationListenerService, Intent/Deep Link |
-| iOS 네이티브 | Swift AppDelegate, Xcode 프로젝트 |
 | 백엔드 | Java 21, Spring Boot 3.5, Spring Web, Spring Data JPA |
 | 웹 서버 | Spring Boot 내장 Tomcat, 기본 포트 `8080` |
 | 데이터베이스 | H2 파일 데이터베이스 |
@@ -49,7 +48,7 @@ MemoA는 카카오톡, 문자, 이메일 등에 포함된 과제·약속·준비
 
 ```text
 MemoA/
-├─ FrontEnd/                         React Native Android/iOS 앱
+├─ FrontEnd/                         React Native Android 앱
 │  ├─ App.tsx                        앱 최상위 컴포넌트
 │  ├─ src/
 │  │  ├─ MemoaApp.tsx                화면 전환과 앱 상태 관리
@@ -64,7 +63,6 @@ MemoA/
 │  │     ├─ MainApplication.java
 │  │     ├─ NotificationCaptureService.java
 │  │     └─ NotificationCaptureModule.java
-│  └─ ios/                           iOS Xcode 프로젝트
 ├─ BackEnd/                          Spring Boot API 서버
 │  ├─ src/main/java/app/memoa/
 │  │  ├─ auth/                       회원가입, 로그인, 토큰
@@ -86,7 +84,6 @@ MemoA/
 - Android Studio와 Android SDK Platform Tools
 - Android 실기기 사용 시 개발자 옵션과 USB 디버깅 활성화
 - Docker Desktop(컨테이너로 백엔드를 실행할 때)
-- iOS 네이티브 빌드 시 macOS, Xcode, CocoaPods
 
 프론트엔드 패키지는 최초 한 번 설치합니다.
 
@@ -242,20 +239,6 @@ $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 
 이 USB 방식은 학교·공용 Wi-Fi의 기기 간 통신 차단 여부와 관계없이 동작합니다. `app-debug.apk`를 아이콘으로만 실행했을 때 Expo 형태의 개발 런처가 보이는 것은 정상이며, 위 딥링크 명령이 Metro 프로젝트를 열어 MemoA 화면으로 전환합니다.
 
-### 3. iOS
-
-Expo Go는 Windows에서도 QR 방식으로 테스트할 수 있습니다. iOS 네이티브 빌드는 macOS와 Xcode가 필요합니다.
-
-```bash
-cd FrontEnd/ios
-bundle install
-bundle exec pod install
-cd ..
-npm run ios:native
-```
-
-iOS에서는 직접 입력과 딥링크를 사용할 수 있습니다. 다른 앱의 공유 시트에 MemoA를 직접 표시하려면 별도의 Share Extension 타깃과 App Group 설정이 필요합니다.
-
 ## 주요 API
 
 기본 경로는 `/api/v1`입니다.
@@ -362,5 +345,4 @@ cd C:\MemoA\BackEnd
 
 - AI 분석 결과는 항상 사용자가 검토한 뒤 저장해야 합니다.
 - Android 알림에 실제 메시지 본문이 표시되지 않으면 분석할 수 없습니다.
-- iOS의 다른 앱 알림은 Android처럼 자동 수집할 수 없습니다.
-- 실제 일정 푸시는 APNs/FCM 자격 증명과 배포 설정이 추가로 필요합니다.
+- 실제 일정 푸시는 FCM 자격 증명과 Android 배포 설정이 추가로 필요합니다.
