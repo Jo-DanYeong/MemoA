@@ -11,6 +11,8 @@ const WEEKDAY_INDEX: Record<string, number> = {
   토요일: 6,
 };
 
+const STRUCTURED_LABELS = '장소|위치|준비\\s*사항|준비물|지참물|챙길 것|가져올 것';
+
 function dateFromMessage(message: string, now: Date): string {
   const explicit = message.match(/(20\d{2})[.\-/년 ]\s*(\d{1,2})[.\-/월 ]\s*(\d{1,2})일?/);
   if (explicit) {
@@ -66,19 +68,13 @@ function timeFromMessage(message: string): string | null {
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
-function valueAfterLabel(message: string, labels: string[]): string | null {
-  const labelPattern = labels.join('|');
-  const match = message.match(new RegExp(`(?:${labelPattern})\\s*[:：]?\\s*([^\\n.]+)`));
-  return match?.[1]?.trim() ?? null;
-}
-
 function titleFromMessage(message: string): string {
   const cleaned = message
     .replace(/(오늘|내일|모레|\d{1,2}월\s*\d{1,2}일|[월화수목금토일]요일)/g, '')
     .replace(/(오전|오후)?\s*\d{1,2}(?::\d{2}|시(?:\s*\d{1,2}분)?)/g, '')
     .replace(/(까지|에|부터)/g, ' ')
-    .replace(/준비물\s*[:：].*$/g, '')
-    .replace(/장소\s*[:：].*$/g, '')
+    .replace(/(?:준비\s*사항|준비물|지참물|챙길 것|가져올 것)\s*[:：].*$/g, '')
+    .replace(/(?:장소|위치)\s*[:：].*$/g, '')
     .replace(/\s+/g, ' ')
     .trim();
   const firstSentence = cleaned.split(/[.!?\n]/)[0].trim();
@@ -88,23 +84,53 @@ function titleFromMessage(message: string): string {
   return firstSentence.length > 28 ? `${firstSentence.slice(0, 28)}…` : firstSentence;
 }
 
+function valueAfterLabel(message: string, labels: string[]): string | null {
+  const labelPattern = labels.join('|');
+  const match = message.match(new RegExp(
+    `(?:${labelPattern})\\s*[:：]?\\s*(.+?)(?=\\s*(?:[,;]\\s*)?(?:${STRUCTURED_LABELS})\\s*[:：]|[\\n.]|$)`,
+  ));
+  return match?.[1]?.trim() ?? null;
+}
+
+function detailsFromMessage(message: string): string {
+  const interpreted = message
+    .replace(/\s*(?:준비\s*사항|준비물|지참물|챙길 것|가져올 것)\s*[:：]\s*[^\n.]+/g, '')
+    .replace(/\s*(?:장소|위치)\s*[:：]\s*[^\n.]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!interpreted) {
+    return '';
+  }
+  const sentence = /[.!?]$/.test(interpreted) ? interpreted : `${interpreted}.`;
+  return sentence.length > 1000 ? `${sentence.slice(0, 999)}…` : sentence;
+}
+
 export function analyzeLocally(message: string, sourceType: SourceType = 'DIRECT'): AnalysisResult {
-  const materialsText = valueAfterLabel(message, ['준비물', '챙길 것', '가져올 것']);
-  const materials = materialsText
-    ? materialsText.split(/[,،·]/).map(item => item.trim()).filter(Boolean)
-    : [];
   const location = valueAfterLabel(message, ['장소', '위치']);
+  const preparationsText = valueAfterLabel(message, [
+    '준비\\s*사항',
+    '준비물',
+    '지참물',
+    '챙길 것',
+    '가져올 것',
+  ]);
+  const preparations = preparationsText
+    ? preparationsText.split(/[,،·]/).map(item => item.trim()).filter(Boolean)
+    : [];
   const dueTime = timeFromMessage(message);
   const hasDateSignal = /(오늘|내일|모레|\d{1,2}월\s*\d{1,2}일|[월화수목금토일]요일|20\d{2})/.test(message);
-  const confidence = Math.min(0.96, 0.52 + (hasDateSignal ? 0.22 : 0) + (dueTime ? 0.12 : 0) + (materials.length ? 0.08 : 0));
+  const confidence = Math.min(
+    0.96,
+    0.5 + (hasDateSignal ? 0.22 : 0) + (dueTime ? 0.12 : 0) + (location ? 0.04 : 0) + (preparations.length ? 0.08 : 0),
+  );
 
   return {
     title: titleFromMessage(message),
-    details: '',
+    details: detailsFromMessage(message),
     dueDate: dateFromMessage(message, new Date()),
     dueTime,
     location,
-    materials,
+    preparations,
     sourceType,
     confidence,
     needsReview: confidence < 0.82,
