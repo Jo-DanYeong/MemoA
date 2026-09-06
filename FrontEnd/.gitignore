@@ -1,75 +1,64 @@
-# OSX
-#
-.DS_Store
-
-# Xcode
-#
-build/
-*.pbxuser
-!default.pbxuser
-*.mode1v3
-!default.mode1v3
-*.mode2v3
-!default.mode2v3
-*.perspectivev3
-!default.perspectivev3
-xcuserdata
-*.xccheckout
-*.moved-aside
-DerivedData
-*.hmap
-*.ipa
-*.xcuserstate
-**/.xcode.env.local
-
-# Android/IntelliJ
-#
-build/
-.idea
-.gradle
-local.properties
-*.iml
-*.hprof
-.cxx/
-*.keystore
-!debug.keystore
-.kotlin/
-
-# node.js
-#
+# Dependencies and package-manager caches
 node_modules/
-npm-debug.log
-yarn-error.log
+.npm/
+.yarn/cache/
+.yarn/unplugged/
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
 
-# fastlane
-#
-# It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the
-# screenshots whenever they are needed.
-# For more information about the recommended setup visit:
-# https://docs.fastlane.tools/best-practices/source-control/
-
-**/fastlane/report.xml
-**/fastlane/Preview.html
-**/fastlane/screenshots
-**/fastlane/test_output
-
-# Bundle artifact
-*.jsbundle
-
-# Ruby / CocoaPods
-**/Pods/
-/vendor/bundle/
-
-# Temporary files created by Metro to check the health of the file watcher
+# Expo, Metro, tests, and generated bundles
+.expo/
+.expo-export-check/
 .metro-health-check*
+coverage/
+*.jsbundle
+*.tsbuildinfo
 
-# testing
-/coverage
+# Local environment and secrets
+.env
+.env.*
+!.env.example
 
-# Yarn
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/sdks
-!.yarn/versions
+# Local Ruby/Bundler and CocoaPods files
+.bundle/
+vendor/bundle/
+ios/Pods/
+
+# Android local and generated files
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/local.properties
+android/captures/
+*.apk
+*.aab
+*.hprof
+*.jks
+*.keystore
+!android/app/debug.keystore
+
+# Xcode local and generated files
+ios/build/
+ios/DerivedData/
+ios/**/*.xcuserdata/
+*.xcuserstate
+*.ipa
+ios/.xcode.env.local
+
+# IDE and operating-system files
+.idea/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+Thumbs.db
+*~
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

@@ -1,11 +1,13 @@
 buildscript {
     ext {
-        buildToolsVersion = "37.0.0"
+        buildToolsVersion = "36.0.0"
         minSdkVersion = 24
-        compileSdkVersion = 37
+        compileSdkVersion = 36
         targetSdkVersion = 36
         ndkVersion = "27.1.12297006"
-        kotlinVersion = "2.2.0"
+        // React Native Gradle plugin과 Kotlin 기반 외부 라이브러리용 버전입니다.
+        // MemoA의 Android 애플리케이션 코드는 Java로만 작성합니다.
+        kotlinVersion = "2.1.20"
     }
     repositories {
         google()
@@ -14,8 +16,8 @@ buildscript {
     dependencies {
         classpath("com.android.tools.build:gradle")
         classpath("com.facebook.react:react-native-gradle-plugin")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
     }
 }
 
 apply plugin: "com.facebook.react.rootproject"
+apply plugin: "expo-root-project"

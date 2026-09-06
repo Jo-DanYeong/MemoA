@@ -1,5 +1,4 @@
 apply plugin: "com.android.application"
-apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
 /**
@@ -52,6 +51,11 @@ react {
 
     /* Autolinking */
     autolinkLibrariesWithApp()
+
+    // Expo CLI가 package.json의 main 진입점을 사용해 네이티브 번들을 생성합니다.
+    entryFile = file(["node", "-e", "require('expo/scripts/resolveAppEntry')", rootDir.getAbsoluteFile().getParentFile().getAbsolutePath(), "android", "absolute"].execute(null, rootDir).text.trim())
+    cliFile = new File(["node", "--print", "require.resolve('@expo/cli')"].execute(null, rootDir).text.trim())
+    bundleCommand = "export:embed"
 }
 
 /**

@@ -1,0 +1,20 @@
+services:
+  memoa-api:
+    build:
+      context: ./BackEnd
+      dockerfile: Dockerfile
+    image: memoa-api:local
+    container_name: memoa-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: 8080
+      MEMOA_DATA_PATH: /data/memoa
+      MEMOA_AI_ENDPOINT: ${MEMOA_AI_ENDPOINT:-}
+      MEMOA_AI_API_KEY: ${MEMOA_AI_API_KEY:-}
+    volumes:
+      - memoa-data:/data
+
+volumes:
+  memoa-data:
