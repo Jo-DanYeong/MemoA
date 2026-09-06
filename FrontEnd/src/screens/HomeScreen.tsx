@@ -37,7 +37,7 @@ export function HomeScreen({session, schedules, onCompose, onCalendar, onToggle}
         <View style={styles.heroCopy}>
           <View style={styles.aiPill}><Text style={styles.aiPillText}>✦ AI 메시지 정리</Text></View>
           <Text style={styles.heroTitle}>받은 메시지,{`\n`}그대로 붙여 넣으세요.</Text>
-          <Text style={styles.heroBody}>날짜와 할 일, 준비물을 찾아드릴게요.</Text>
+          <Text style={styles.heroBody}>날짜, 장소와 준비 사항까지 찾아드릴게요.</Text>
           <View style={styles.heroButton}><Text style={styles.heroButtonText}>메시지 분석하기  →</Text></View>
         </View>
         <View style={styles.heroArt}>
