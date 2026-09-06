@@ -5,14 +5,15 @@ import java.time.LocalTime;
 import java.util.List;
 
 import app.memoa.schedule.SourceType;
+import com.fasterxml.jackson.annotation.JsonFormat;
 
 public record AnalysisResponse(
     String title,
     String details,
     LocalDate dueDate,
-    LocalTime dueTime,
+    @JsonFormat(pattern = "HH:mm") LocalTime dueTime,
     String location,
-    List<String> materials,
+    List<String> preparations,
     SourceType sourceType,
     double confidence,
     boolean needsReview
