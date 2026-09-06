@@ -29,14 +29,16 @@ type FieldProps = {
   onChangeText: (value: string) => void;
   placeholder?: string;
   multiline?: boolean;
+  maxLength?: number;
 };
 
-function Field({label, value, onChangeText, placeholder, multiline}: FieldProps) {
+function Field({label, value, onChangeText, placeholder, multiline, maxLength}: FieldProps) {
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
         multiline={multiline}
+        maxLength={maxLength}
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor="#9AA39F"
@@ -50,18 +52,23 @@ function Field({label, value, onChangeText, placeholder, multiline}: FieldProps)
 export function ReviewScreen({initial, usedLocalFallback, onBack, onSave}: Props) {
   const insets = useSafeAreaInsets();
   const [title, setTitle] = useState(initial.title);
-  const [details, setDetails] = useState(initial.details);
+  const [details, setDetails] = useState(initial.details ?? '');
   const [dueDate, setDueDate] = useState(initial.dueDate);
-  const [dueTime, setDueTime] = useState(initial.dueTime ?? '');
+  const [dueTime, setDueTime] = useState(initial.dueTime?.slice(0, 5) ?? '');
   const [location, setLocation] = useState(initial.location ?? '');
-  const [materials, setMaterials] = useState(initial.materials.join(', '));
+  const [preparations, setPreparations] = useState((initial.preparations ?? []).join(', '));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const confidence = useMemo(() => Math.round(initial.confidence * 100), [initial.confidence]);
 
   const save = async () => {
-    if (!title.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
-      setError('일정 이름과 날짜 형식(YYYY-MM-DD)을 확인해주세요.');
+    const normalizedTime = dueTime.trim();
+    if (
+      !title.trim()
+      || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)
+      || (normalizedTime !== '' && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(normalizedTime))
+    ) {
+      setError('일정 이름, 날짜(YYYY-MM-DD), 시간(HH:mm) 형식을 확인해주세요.');
       return;
     }
     setBusy(true);
@@ -72,9 +79,9 @@ export function ReviewScreen({initial, usedLocalFallback, onBack, onSave}: Props
         title: title.trim(),
         details: details.trim(),
         dueDate,
-        dueTime: dueTime.trim() || null,
+        dueTime: normalizedTime || null,
         location: location.trim() || null,
-        materials: materials.split(',').map(item => item.trim()).filter(Boolean),
+        preparations: preparations.split(',').map(item => item.trim()).filter(Boolean),
         needsReview: false,
       });
     } catch (caught) {
@@ -107,6 +114,8 @@ export function ReviewScreen({initial, usedLocalFallback, onBack, onSave}: Props
         <View style={styles.formCard}>
           <Field label="해야 할 일" onChangeText={setTitle} value={title} />
           <View style={styles.divider} />
+          <Field label="AI가 해석한 내용" maxLength={1000} multiline onChangeText={setDetails} placeholder="일정에 필요한 내용을 문장으로 확인해 주세요" value={details} />
+          <View style={styles.divider} />
           <Field label="날짜" onChangeText={setDueDate} placeholder="YYYY-MM-DD" value={dueDate} />
           <View style={styles.quickDates}>
             <Pressable onPress={() => setDueDate(addDaysISO(0))} style={styles.quickChip}><Text style={styles.quickText}>오늘</Text></Pressable>
@@ -114,13 +123,11 @@ export function ReviewScreen({initial, usedLocalFallback, onBack, onSave}: Props
             <Pressable onPress={() => setDueDate(addDaysISO(7))} style={styles.quickChip}><Text style={styles.quickText}>일주일 뒤</Text></Pressable>
           </View>
           <View style={styles.divider} />
-          <Field label="시간" onChangeText={setDueTime} placeholder="예: 15:30 (선택)" value={dueTime} />
+          <Field label="시간" maxLength={5} onChangeText={setDueTime} placeholder="HH:mm (선택)" value={dueTime} />
           <View style={styles.divider} />
-          <Field label="장소" onChangeText={setLocation} placeholder="장소 없음" value={location} />
+          <Field label="장소" maxLength={180} onChangeText={setLocation} placeholder="장소 미정" value={location} />
           <View style={styles.divider} />
-          <Field label="준비물" onChangeText={setMaterials} placeholder="쉼표로 구분해주세요" value={materials} />
-          <View style={styles.divider} />
-          <Field label="메모" multiline onChangeText={setDetails} value={details} />
+          <Field label="준비 사항" maxLength={1000} multiline onChangeText={setPreparations} placeholder="예: 실험 노트, 신분증, 사전 작성 서류" value={preparations} />
         </View>
 
         <View style={styles.reminderCard}>
