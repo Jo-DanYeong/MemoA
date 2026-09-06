@@ -64,7 +64,7 @@ export function AuthScreen({onAuthenticate, onGuest}: Props) {
         </View>
 
         <Text style={styles.heading}>메시지는 그대로,{`\n`}일정은 알아서.</Text>
-        <Text style={styles.subheading}>받은 메시지를 붙여 넣으면 해야 할 일과 날짜, 준비물을 한 번에 정리해드려요.</Text>
+        <Text style={styles.subheading}>받은 메시지를 붙여 넣으면 해야 할 일, 장소와 준비 사항까지 일정으로 정리해드려요.</Text>
 
         <View style={styles.segment}>
           <Pressable onPress={() => {setMode('login'); setError('');}} style={[styles.segmentButton, mode === 'login' && styles.segmentActive]}>
@@ -115,7 +115,7 @@ export function AuthScreen({onAuthenticate, onGuest}: Props) {
             <Text style={styles.guestText}>서버 없이 먼저 둘러보기 →</Text>
           </Pressable>
         </View>
-        <Text style={styles.privacy}>MemoA는 분석에 필요한 메시지만 처리하며 원문을 일정에 저장하지 않습니다.</Text>
+        <Text style={styles.privacy}>분석 결과는 저장하기 전에 직접 확인하고 수정할 수 있습니다.</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
