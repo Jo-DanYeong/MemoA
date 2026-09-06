@@ -22,7 +22,7 @@ type Props = {
   onAnalyzed: (result: AnalysisResult) => void;
 };
 
-const EXAMPLE = '금요일 오후 3시까지 과학 수행평가 보고서 제출. 준비물: 실험 노트, USB';
+const EXAMPLE = '금요일 오후 3시까지 과학 수행평가 보고서를 제출하고 실험 노트와 USB를 챙겨 와.';
 
 export function ComposerScreen({initialMessage = '', initialSource = 'DIRECT', onAnalyze, onAnalyzed}: Props) {
   const insets = useSafeAreaInsets();
@@ -92,7 +92,7 @@ export function ComposerScreen({initialMessage = '', initialSource = 'DIRECT', o
             maxLength={2000}
             multiline
             onChangeText={setMessage}
-            placeholder={'예) 다음 주 화요일 오전 10시 팀 회의가 있어요.\n장소: 3층 회의실, 준비물: 기획안'}
+            placeholder={'예) 다음 주 화요일 오전 10시에 3층 회의실에서 팀 회의가 있어요. 기획안을 가져와 주세요.'}
             placeholderTextColor="#9AA39F"
             style={styles.input}
             textAlignVertical="top"
@@ -118,7 +118,7 @@ export function ComposerScreen({initialMessage = '', initialSource = 'DIRECT', o
           <View style={styles.shield}><Text style={styles.shieldText}>✓</Text></View>
           <View style={styles.privacyCopy}>
             <Text style={styles.privacyTitle}>메시지는 필요한 순간에만 분석해요</Text>
-            <Text style={styles.privacyBody}>일정으로 저장할 때 원문은 제외하고 정리된 정보만 보관합니다.</Text>
+            <Text style={styles.privacyBody}>일정으로 저장할 때 사용자가 확인한 해석 결과만 보관합니다.</Text>
           </View>
         </View>
       </ScrollView>
