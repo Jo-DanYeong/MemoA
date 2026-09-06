@@ -19,6 +19,7 @@ const sourceLabel = {
 
 export function ScheduleCard({schedule, onToggle, compact = false}: Props) {
   const done = schedule.status === 'DONE';
+  const preparations = schedule.preparations ?? [];
   return (
     <View style={[styles.card, compact && styles.cardCompact, done && styles.cardDone]}>
       <View style={styles.dateRail}>
@@ -37,10 +38,11 @@ export function ScheduleCard({schedule, onToggle, compact = false}: Props) {
             </Pressable>
           ) : null}
         </View>
-        {!compact && (schedule.location || schedule.materials.length > 0) ? (
+        {!compact && schedule.details ? <Text numberOfLines={2} style={styles.details}>{schedule.details}</Text> : null}
+        {!compact && (schedule.location || preparations.length > 0) ? (
           <View style={styles.metaRow}>
-            {schedule.location ? <Text numberOfLines={1} style={styles.meta}>⌖ {schedule.location}</Text> : null}
-            {schedule.materials.length > 0 ? <Text numberOfLines={1} style={styles.meta}>◫ {schedule.materials.join(', ')}</Text> : null}
+            {schedule.location ? <Text numberOfLines={1} style={styles.meta}>장소 · {schedule.location}</Text> : null}
+            {preparations.length > 0 ? <Text numberOfLines={1} style={styles.meta}>준비 사항 · {preparations.join(', ')}</Text> : null}
           </View>
         ) : null}
         <View style={styles.sourceRow}>
@@ -73,8 +75,9 @@ const styles = StyleSheet.create({
   check: {alignItems: 'center', borderColor: colors.line, borderRadius: 10, borderWidth: 1.5, height: 22, justifyContent: 'center', width: 22},
   checkDone: {backgroundColor: colors.ink, borderColor: colors.ink},
   checkText: {color: colors.white, fontSize: 13, fontWeight: '900'},
-  metaRow: {gap: 4, marginTop: 9},
-  meta: {color: colors.textMuted, fontSize: 12},
+  details: {color: colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 8},
+  metaRow: {gap: 4, marginTop: 8},
+  meta: {color: colors.textMuted, fontSize: 11, fontWeight: '600'},
   sourceRow: {alignItems: 'center', flexDirection: 'row', gap: 5, marginTop: 9},
   sourceDot: {backgroundColor: colors.accentDark, borderRadius: 3, height: 6, width: 6},
   source: {color: colors.textMuted, fontSize: 10, fontWeight: '600'},
