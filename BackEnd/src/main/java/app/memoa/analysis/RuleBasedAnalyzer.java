@@ -25,27 +25,41 @@ public class RuleBasedAnalyzer {
     private static final Pattern DATE_SIGNAL = Pattern.compile(
         "오늘|내일|모레|\\d{1,2}월\\s*\\d{1,2}일|[월화수목금토일]요일|20\\d{2}"
     );
+    private static final String STRUCTURED_LABELS =
+        "장소|위치|준비\\s*사항|준비물|지참물|챙길 것|가져올 것";
     private static final Map<String, DayOfWeek> WEEKDAYS = createWeekdays();
 
     public AnalysisResponse analyze(AnalysisRequest request) {
         String message = request.message().trim();
         LocalDate referenceDate = request.referenceDate() == null ? LocalDate.now() : request.referenceDate();
         LocalTime time = parseTime(message);
-        List<String> materials = parseListAfterLabel(message, "준비물", "챙길 것", "가져올 것");
         String location = parseValueAfterLabel(message, "장소", "위치");
+        List<String> preparations = parseListAfterLabel(
+            message,
+            "준비 사항",
+            "준비사항",
+            "준비물",
+            "지참물",
+            "챙길 것",
+            "가져올 것"
+        );
         boolean hasDateSignal = DATE_SIGNAL.matcher(message).find();
         double confidence = Math.min(
             0.96,
-            0.52 + (hasDateSignal ? 0.22 : 0) + (time != null ? 0.12 : 0) + (!materials.isEmpty() ? 0.08 : 0)
+            0.50
+                + (hasDateSignal ? 0.22 : 0)
+                + (time != null ? 0.12 : 0)
+                + (location != null ? 0.04 : 0)
+                + (!preparations.isEmpty() ? 0.08 : 0)
         );
 
         return new AnalysisResponse(
             parseTitle(message),
-            "",
+            interpretDetails(message),
             parseDate(message, referenceDate),
             time,
             location,
-            materials,
+            preparations,
             request.sourceType() == null ? SourceType.DIRECT : request.sourceType(),
             confidence,
             confidence < 0.82
@@ -142,7 +156,11 @@ public class RuleBasedAnalyzer {
 
     private String parseValueAfterLabel(String message, String... labels) {
         String alternatives = String.join("|", labels);
-        Matcher matcher = Pattern.compile("(?:" + alternatives + ")\\s*[:：]?\\s*([^\\n.]+)").matcher(message);
+        Matcher matcher = Pattern.compile(
+            "(?:" + alternatives + ")\\s*[:：]?\\s*(.+?)(?=\\s*(?:[,;]\\s*)?(?:"
+                + STRUCTURED_LABELS
+                + ")\\s*[:：]|[\\n.]|$)"
+        ).matcher(message);
         return matcher.find() ? matcher.group(1).trim() : null;
     }
 
@@ -151,8 +169,8 @@ public class RuleBasedAnalyzer {
             .replaceAll("(오늘|내일|모레|\\d{1,2}월\\s*\\d{1,2}일|[월화수목금토일]요일)", "")
             .replaceAll("(오전|오후)?\\s*\\d{1,2}(?::\\d{2}|시(?:\\s*\\d{1,2}분)?)", "")
             .replaceAll("(까지|부터)", " ")
-            .replaceAll("준비물\\s*[:：].*$", "")
-            .replaceAll("장소\\s*[:：].*$", "")
+            .replaceAll("(?:준비\\s*사항|준비물|지참물|챙길 것|가져올 것)\\s*[:：].*$", "")
+            .replaceAll("(?:장소|위치)\\s*[:：].*$", "")
             .replaceAll("\\s+", " ")
             .trim();
         String firstSentence = cleaned.split("[.!?\\n]")[0].trim();
@@ -160,6 +178,21 @@ public class RuleBasedAnalyzer {
             return "새로운 일정";
         }
         return firstSentence.length() > 28 ? firstSentence.substring(0, 28) + "…" : firstSentence;
+    }
+
+    private String interpretDetails(String message) {
+        String interpreted = message
+            .replaceAll("\\s*(?:준비\\s*사항|준비물|지참물|챙길 것|가져올 것)\\s*[:：]\\s*[^\\n.]+", "")
+            .replaceAll("\\s*(?:장소|위치)\\s*[:：]\\s*[^\\n.]+", "")
+            .replaceAll("\\s+", " ")
+            .trim();
+        if (interpreted.isBlank()) {
+            return "";
+        }
+        if (!interpreted.matches(".*[.!?]$")) {
+            interpreted += ".";
+        }
+        return interpreted.length() > 1000 ? interpreted.substring(0, 997) + "..." : interpreted;
     }
 
     private static Map<String, DayOfWeek> createWeekdays() {
