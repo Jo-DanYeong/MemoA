@@ -1,13 +1,13 @@
 # MemoA
 
-MemoA는 카카오톡, 문자, 이메일 등에 포함된 과제·약속·준비물·마감 정보를 분석해 일정으로 정리하는 Android 앱입니다. 사용자는 AI 분석 결과를 확인하고 수정한 뒤 저장할 수 있으며, Android 알림과 텍스트 공유를 통해 일정 후보를 가져올 수 있습니다.
+MemoA는 카카오톡, 문자, 이메일 등에 포함된 과제·약속·마감 문장의 의미를 분석해 일정으로 정리하는 Android 앱입니다. 사용자는 AI가 찾은 날짜, 시간, 장소와 준비 사항을 확인하고 수정한 뒤 저장할 수 있으며, Android 알림과 텍스트 공유를 통해 일정 후보를 가져올 수 있습니다.
 
 ## 주요 기능
 
 ### 메시지 분석과 일정 관리
 
 - 메시지 직접 입력 및 `memoa://capture?text=...` 딥링크 수신
-- 해야 할 일, 날짜, 시간, 장소, 준비물 추출
+- 메시지 의미를 제목·설명, 날짜·시간, 장소와 준비 사항으로 해석
 - 원격 AI 분석 실패 시 한국어 규칙 기반 분석기로 자동 전환
 - 분석 결과 확인·수정 후 일정 저장
 - 일정 목록, 월간 캘린더, 날짜별 일정 확인
@@ -19,7 +19,7 @@ MemoA는 카카오톡, 문자, 이메일 등에 포함된 과제·약속·준비
 - 30일 인증 토큰을 이용한 API 인증
 - 서버 없이 화면을 확인할 수 있는 체험 모드
 - 사용자별 일정 데이터를 H2 파일 데이터베이스에 저장
-- 원본 메시지는 일정 테이블에 저장하지 않고 분석 요청에만 사용
+- 사용자가 확인한 제목, 설명, 날짜·시간, 장소와 준비 사항만 일정 데이터로 저장
 
 ### Android 네이티브 기능
 
@@ -170,6 +170,86 @@ H2 데이터는 `memoa-data` Docker 볼륨에 유지됩니다.
 
 ## 앱 실행
 
+### 테스트 방법 선택
+
+| 테스트 목적 | 실행 방법 | Metro 필요 여부 |
+| --- | --- | --- |
+| 화면과 기본 기능을 빠르게 확인 | Expo Go | 필요 |
+| 알림 감지·텍스트 공유 등 Android 네이티브 기능 개발 | Android 개발 앱 | 필요 |
+| 사용자가 설치한 것과 같은 형태로 전체 동작 확인 | 테스트용 release APK | 불필요 |
+
+### 평소 개발 테스트 권장 순서
+
+Android 네이티브 기능까지 테스트할 때는 아래 순서로 실행합니다. 최초 한 번은 `npm install`과 개발 앱 설치가 필요하지만, 이후에는 1~4단계만 반복하면 됩니다.
+
+#### 최초 한 번 준비
+
+```powershell
+cd C:\MemoA\FrontEnd
+npm install
+Copy-Item .env.example .env
+
+cd android
+.\gradlew.bat installDebug
+```
+
+`FrontEnd/.env`에는 USB reverse를 사용할 수 있도록 다음 주소를 설정합니다.
+
+```text
+EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8080/api/v1
+```
+
+#### 1단계: 휴대폰 연결 확인
+
+휴대폰 잠금을 해제하고 USB 디버깅을 허용합니다. 결과에서 휴대폰 옆에 `device`가 표시되어야 합니다.
+
+```powershell
+$adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+& $adb devices -l
+```
+
+#### 2단계: 백엔드 실행
+
+첫 번째 PowerShell을 열고 Spring Boot 서버를 실행합니다. 이 창은 테스트하는 동안 닫지 않습니다.
+
+```powershell
+cd C:\MemoA\BackEnd
+.\gradlew.bat bootRun
+```
+
+서버가 시작되면 다른 PowerShell에서 상태를 확인할 수 있습니다.
+
+```powershell
+Invoke-RestMethod http://localhost:8080/api/v1/health
+```
+
+#### 3단계: Metro 실행
+
+두 번째 PowerShell에서 Metro를 실행하고 창을 계속 열어 둡니다.
+
+```powershell
+cd C:\MemoA\FrontEnd
+npm run start:dev -- --lan --port 8081
+```
+
+#### 4단계: 포트 연결 후 앱 실행
+
+세 번째 PowerShell에서 백엔드와 Metro 포트를 휴대폰으로 연결한 다음 MemoA를 실행합니다.
+
+```powershell
+$adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+
+& $adb reverse tcp:8080 tcp:8080
+& $adb reverse tcp:8081 tcp:8081
+
+& $adb shell am start `
+  -a android.intent.action.VIEW `
+  -d "memoa://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081" `
+  com.frontend
+```
+
+테스트를 종료할 때는 Metro와 Spring Boot가 실행 중인 PowerShell에서 각각 `Ctrl+C`를 누릅니다. 앱의 Java 코드나 Android 설정을 변경한 경우에는 `installDebug`를 다시 실행해야 하며, TypeScript 화면 코드만 변경한 경우에는 Metro가 변경사항을 자동 반영합니다.
+
 ### 1. Expo Go
 
 PC와 휴대폰을 같은 네트워크에 연결하고 `.env`에 PC의 LAN IPv4 주소를 설정합니다.
@@ -239,6 +319,76 @@ $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 
 이 USB 방식은 학교·공용 Wi-Fi의 기기 간 통신 차단 여부와 관계없이 동작합니다. `app-debug.apk`를 아이콘으로만 실행했을 때 Expo 형태의 개발 런처가 보이는 것은 정상이며, 위 딥링크 명령이 Metro 프로젝트를 열어 MemoA 화면으로 전환합니다.
 
+### 3. Expo와 Metro 없이 설치 테스트
+
+테스트용 release APK에는 JavaScript 번들이 포함되므로 Expo Go와 Metro가 필요하지 않습니다. 빌드하기 전에 `FrontEnd/.env`의 `EXPO_PUBLIC_API_BASE_URL`을 휴대폰에서 접근 가능한 백엔드 주소로 설정합니다.
+
+예를 들어 개발 PC의 LAN IPv4 주소가 `192.168.0.10`이라면 다음과 같이 설정합니다. APK에는 빌드 시점의 주소가 포함되므로 주소를 바꾼 후에는 반드시 다시 빌드해야 합니다.
+
+```text
+EXPO_PUBLIC_API_BASE_URL=http://192.168.0.10:8080/api/v1
+```
+
+#### 1단계: 백엔드 실행
+
+휴대폰과 PC를 같은 네트워크에 연결하고 백엔드를 실행합니다.
+
+```powershell
+cd C:\MemoA\BackEnd
+.\gradlew.bat bootRun
+```
+
+#### 2단계: APK 빌드
+
+```powershell
+cd C:\MemoA\FrontEnd
+npm run android:apk
+```
+
+생성 파일:
+
+```text
+C:\MemoA\FrontEnd\android\app\build\outputs\apk\release\app-release.apk
+```
+
+#### 3단계: APK 설치
+
+휴대폰으로 APK를 직접 복사한 경우 파일 앱에서 APK를 열고, 요청이 나오면 해당 파일 앱의 `출처를 알 수 없는 앱 설치` 권한을 허용합니다.
+
+USB로 설치할 때는 먼저 연결 상태를 확인합니다.
+
+```powershell
+$adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+& $adb devices -l
+& $adb install -r C:\MemoA\FrontEnd\android\app\build\outputs\apk\release\app-release.apk
+```
+
+마지막 출력이 `Success`이면 설치된 것입니다. `Performing Streamed Install`에서 오래 멈추거나 `Success`가 출력되지 않으면 APK를 먼저 전송한 뒤 직접 설치합니다. 60MB 이상의 APK는 USB 연결 상태에 따라 전송에 1~2분 이상 걸릴 수 있습니다.
+
+```powershell
+$adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+$apk = "C:\MemoA\FrontEnd\android\app\build\outputs\apk\release\app-release.apk"
+
+& $adb push $apk /data/local/tmp/memoa-release.apk
+& $adb shell pm install -r -d /data/local/tmp/memoa-release.apk
+& $adb shell rm -f /data/local/tmp/memoa-release.apk
+```
+
+기존 개발 앱과 서명이 충돌해 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`가 표시될 경우 기존 MemoA 앱을 삭제한 뒤 다시 설치해야 합니다. 기존 앱 삭제 시 단말에 저장된 앱 데이터도 삭제됩니다.
+
+#### 4단계: 앱 실행
+
+휴대폰의 MemoA 아이콘을 누르거나 다음 명령으로 실행합니다.
+
+```powershell
+$adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+& $adb shell am start -n com.frontend/.MainActivity
+```
+
+release APK 실행에는 Expo Go와 Metro가 필요하지 않지만, 로그인·서버 분석·일정 저장 기능을 사용하려면 백엔드는 계속 실행되어 있어야 합니다.
+
+이 APK는 개발용 키로 서명된 내부 테스트 빌드입니다. Play Store나 외부 배포 전에는 별도의 release keystore와 안전한 키 관리 설정이 필요합니다.
+
 ## 주요 API
 
 기본 경로는 `/api/v1`입니다.
@@ -258,16 +408,16 @@ $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 
 ## AI 분석 API 연동
 
-외부 AI 게이트웨이는 `message`, `sourceType`, `referenceDate`, `language`, `responseSchema`를 받고 다음 형태의 JSON을 반환해야 합니다.
+외부 AI 게이트웨이는 `message`, `sourceType`, `referenceDate`, `language`, `instruction`, `responseSchema`를 받습니다. 메시지 전체의 의미를 해석하여 다음 형태의 JSON을 반환해야 하며, 시간은 `HH:mm` 형식만 사용합니다.
 
 ```json
 {
   "title": "과학 수행평가 보고서 제출",
-  "details": "",
+  "details": "과학실에서 실험 노트와 USB를 챙겨 보고서 최종본을 제출합니다.",
   "dueDate": "2026-09-12",
-  "dueTime": "15:00:00",
+  "dueTime": "15:00",
   "location": "과학실",
-  "materials": ["실험 노트", "USB"],
+  "preparations": ["실험 노트", "USB"],
   "sourceType": "SHARE",
   "confidence": 0.94,
   "needsReview": false
