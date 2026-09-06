@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "android": "expo start --go --android",
+    "android:apk": "cd android && set NODE_ENV=production&& gradlew.bat assembleRelease",
     "android:native": "expo run:android",
     "ios": "expo start --go --ios",
     "ios:native": "expo run:ios",
