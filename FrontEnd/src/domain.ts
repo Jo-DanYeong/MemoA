@@ -15,7 +15,7 @@ export type AnalysisResult = {
   dueDate: string;
   dueTime?: string | null;
   location?: string | null;
-  materials: string[];
+  preparations: string[];
   sourceType: SourceType;
   confidence: number;
   needsReview: boolean;
