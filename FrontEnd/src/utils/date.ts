@@ -30,11 +30,8 @@ export function formatTime(value?: string | null): string {
   if (!value) {
     return '시간 미정';
   }
-  const [hourText, minute = '00'] = value.split(':');
-  const hour = Number(hourText);
-  const period = hour < 12 ? '오전' : '오후';
-  const displayHour = hour % 12 || 12;
-  return `${period} ${displayHour}:${minute}`;
+  const [hour = '00', minute = '00'] = value.split(':');
+  return `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
 }
 
 export function relativeDay(value: string): string {
