@@ -7,14 +7,16 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+
 public record ScheduleResponse(
     UUID id,
     String title,
     String details,
     LocalDate dueDate,
-    LocalTime dueTime,
+    @JsonFormat(pattern = "HH:mm") LocalTime dueTime,
     String location,
-    List<String> materials,
+    List<String> preparations,
     SourceType sourceType,
     ScheduleStatus status,
     double confidence,
@@ -30,7 +32,7 @@ public record ScheduleResponse(
             schedule.getDueDate(),
             schedule.getDueTime(),
             schedule.getLocation(),
-            List.copyOf(schedule.getMaterials()),
+            List.copyOf(schedule.getPreparations()),
             schedule.getSourceType(),
             schedule.getStatus(),
             schedule.getConfidence(),
