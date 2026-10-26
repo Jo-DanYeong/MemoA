@@ -20,11 +20,12 @@ type Props = {
   initialSource?: SourceType;
   onAnalyze: (message: string, source: SourceType) => Promise<AnalysisResult>;
   onAnalyzed: (result: AnalysisResult) => void;
+  onBack: () => void;
 };
 
-const EXAMPLE = '금요일 오후 3시까지 과학 수행평가 보고서를 제출하고 실험 노트와 USB를 챙겨 와.';
+const EXAMPLE = '내일 오후 3시까지 과제 제출하고, 준비물은 발표 자료와 노트북이야.';
 
-export function ComposerScreen({initialMessage = '', initialSource = 'DIRECT', onAnalyze, onAnalyzed}: Props) {
+export function ComposerScreen({initialMessage = '', initialSource = 'DIRECT', onAnalyze, onAnalyzed, onBack}: Props) {
   const insets = useSafeAreaInsets();
   const [message, setMessage] = useState(initialMessage);
   const [source, setSource] = useState<SourceType>(initialSource);
@@ -32,15 +33,13 @@ export function ComposerScreen({initialMessage = '', initialSource = 'DIRECT', o
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (initialMessage) {
-      setMessage(initialMessage);
-      setSource(initialSource);
-    }
+    setMessage(initialMessage);
+    setSource(initialSource);
   }, [initialMessage, initialSource]);
 
   const analyze = async () => {
     if (message.trim().length < 3) {
-      setError('분석할 메시지를 3자 이상 입력해주세요.');
+      setError('분석할 메시지를 3자 이상 입력해 주세요.');
       return;
     }
     setBusy(true);
@@ -49,78 +48,70 @@ export function ComposerScreen({initialMessage = '', initialSource = 'DIRECT', o
       onAnalyzed(await onAnalyze(message.trim(), source));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '메시지를 분석하지 못했습니다.');
-    } finally {
       setBusy(false);
     }
   };
 
+  if (busy) {
+    return (
+      <View style={[styles.loadingPage, {paddingTop: Math.max(insets.top, 20)}]}>
+        <View style={styles.loadingOrb}><ActivityIndicator color={colors.white} size="large" /></View>
+        <Text style={styles.loadingTitle}>해야 할 일과 일정 정보를 찾고 있어요</Text>
+        <Text style={styles.loadingBody}>AI가 메시지 속 중요한 날짜와 장소를 정리 중입니다.</Text>
+        <View style={styles.loadingSteps}>
+          <Text style={styles.loadingDone}>✓  메시지 읽는 중…</Text>
+          <Text style={styles.loadingActive}>●  일정 추출 중…</Text>
+          <Text style={styles.loadingPending}>   결과 정리 중…</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
-      <ScrollView
-        contentContainerStyle={[styles.page, {paddingTop: Math.max(insets.top, 20)}]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.titleRow}>
-          <View>
-            <Text style={styles.eyebrow}>NEW CAPTURE</Text>
-            <Text style={styles.title}>메시지에서 일정 찾기</Text>
-          </View>
-          <View style={styles.spark}><Text style={styles.sparkText}>✦</Text></View>
-        </View>
-        <Text style={styles.description}>카카오톡, 문자, 이메일에서 받은 내용을 그대로 붙여 넣어도 괜찮아요.</Text>
-
-        <View style={styles.sourceRow}>
-          <Pressable onPress={() => setSource('DIRECT')} style={[styles.chip, source === 'DIRECT' && styles.chipActive]}>
-            <Text style={[styles.chipText, source === 'DIRECT' && styles.chipTextActive]}>직접 입력</Text>
-          </Pressable>
-          <Pressable onPress={() => setSource('SHARE')} style={[styles.chip, source === 'SHARE' && styles.chipActive]}>
-            <Text style={[styles.chipText, source === 'SHARE' && styles.chipTextActive]}>공유한 메시지</Text>
-          </Pressable>
-          {Platform.OS === 'android' ? (
-            <Pressable onPress={() => setSource('ANDROID_NOTIFICATION')} style={[styles.chip, source === 'ANDROID_NOTIFICATION' && styles.chipActive]}>
-              <Text style={[styles.chipText, source === 'ANDROID_NOTIFICATION' && styles.chipTextActive]}>감지된 알림</Text>
-            </Pressable>
-          ) : null}
+      <ScrollView contentContainerStyle={[styles.page, {paddingTop: Math.max(insets.top, 12)}]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <Pressable accessibilityLabel="뒤로" onPress={onBack} style={styles.back}><Text style={styles.backText}>‹</Text></Pressable>
+          <Text style={styles.title}>메시지 입력</Text>
+          <View style={styles.headerSpacer} />
         </View>
 
         <View style={styles.editor}>
-          <View style={styles.editorTop}>
+          <View style={styles.editorHeader}>
             <Text style={styles.editorLabel}>메시지 내용</Text>
-            <Text style={styles.count}>{message.length} / 2,000</Text>
+            <Pressable onPress={() => setMessage(EXAMPLE)} style={styles.pasteButton}>
+              <Text style={styles.pasteText}>▣ 예시 넣기</Text>
+            </Pressable>
           </View>
           <TextInput
             maxLength={2000}
             multiline
             onChangeText={setMessage}
-            placeholder={'예) 다음 주 화요일 오전 10시에 3층 회의실에서 팀 회의가 있어요. 기획안을 가져와 주세요.'}
-            placeholderTextColor="#9AA39F"
+            placeholder="일정이 포함된 메시지를 붙여 넣거나 입력해 주세요"
+            placeholderTextColor={colors.disabledText}
             style={styles.input}
             textAlignVertical="top"
             value={message}
           />
-          <View style={styles.editorActions}>
-            <Pressable onPress={() => setMessage('')} style={styles.clearButton}><Text style={styles.clearText}>내용 지우기</Text></Pressable>
-            <Pressable onPress={() => setMessage(EXAMPLE)} style={styles.exampleButton}><Text style={styles.exampleText}>예시 넣기</Text></Pressable>
-          </View>
+          <Text style={styles.count}>{message.length} / 2,000</Text>
         </View>
 
+        <View style={styles.exampleCard}>
+          <Text style={styles.exampleTitle}>입력 예시</Text>
+          <Text style={styles.exampleBody}>“내일 오후 3시까지 과제 제출하고, 준비물은 발표 자료와 노트북이야.”</Text>
+        </View>
+
+        <View style={styles.privacyRow}>
+          <Text style={styles.shield}>♢</Text>
+          <Text style={styles.privacyText}>개인정보가 포함된 메시지는 일정 분석에 필요한 범위에서만 처리됩니다.</Text>
+        </View>
+
+        {source !== 'DIRECT' ? <Text style={styles.sourceText}>공유된 메시지를 불러왔습니다.</Text> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <Pressable disabled={busy} onPress={analyze} style={({pressed}) => [styles.analyze, pressed && styles.pressed, busy && styles.disabled]}>
-          {busy ? (
-            <View style={styles.loadingRow}><ActivityIndicator color={colors.ink} /><Text style={styles.analyzeText}>중요한 내용을 찾고 있어요…</Text></View>
-          ) : (
-            <Text style={styles.analyzeText}>✦  AI로 일정 정리하기</Text>
-          )}
+        <Pressable onPress={analyze} style={({pressed}) => [styles.analyze, pressed && styles.pressed]}>
+          <Text style={styles.analyzeText}>✣ AI로 분석하기</Text>
         </Pressable>
-
-        <View style={styles.privacyCard}>
-          <View style={styles.shield}><Text style={styles.shieldText}>✓</Text></View>
-          <View style={styles.privacyCopy}>
-            <Text style={styles.privacyTitle}>메시지는 필요한 순간에만 분석해요</Text>
-            <Text style={styles.privacyBody}>일정으로 저장할 때 사용자가 확인한 해석 결과만 보관합니다.</Text>
-          </View>
-        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -128,38 +119,36 @@ export function ComposerScreen({initialMessage = '', initialSource = 'DIRECT', o
 
 const styles = StyleSheet.create({
   flex: {backgroundColor: colors.background, flex: 1},
-  page: {backgroundColor: colors.background, paddingBottom: 34, paddingHorizontal: 20},
-  titleRow: {alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between'},
-  eyebrow: {color: colors.textMuted, fontSize: 10, fontWeight: '900', letterSpacing: 1.4},
-  title: {color: colors.ink, fontSize: 26, fontWeight: '900', letterSpacing: -0.8, marginTop: 4},
-  spark: {alignItems: 'center', backgroundColor: colors.accent, borderRadius: 22, height: 44, justifyContent: 'center', width: 44},
-  sparkText: {color: colors.ink, fontSize: 20, fontWeight: '900'},
-  description: {color: colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 10, maxWidth: 310},
-  sourceRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 21},
-  chip: {backgroundColor: colors.surfaceMuted, borderRadius: radius.pill, paddingHorizontal: 13, paddingVertical: 8},
-  chipActive: {backgroundColor: colors.ink},
-  chipText: {color: colors.textMuted, fontSize: 11, fontWeight: '700'},
-  chipTextActive: {color: colors.white},
-  editor: {backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.large, borderWidth: 1, marginTop: 14, padding: 17},
-  editorTop: {alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between'},
-  editorLabel: {color: colors.ink, fontSize: 13, fontWeight: '900'},
-  count: {color: colors.textMuted, fontSize: 10},
-  input: {color: colors.text, fontSize: 16, lineHeight: 25, minHeight: 205, paddingHorizontal: 0, paddingTop: 18},
-  editorActions: {alignItems: 'center', borderTopColor: colors.line, borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-between', paddingTop: 12},
-  clearButton: {paddingVertical: 5},
-  clearText: {color: colors.textMuted, fontSize: 11, fontWeight: '700'},
-  exampleButton: {backgroundColor: colors.mint, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7},
-  exampleText: {color: colors.ink, fontSize: 11, fontWeight: '800'},
-  error: {color: colors.danger, fontSize: 12, marginTop: 10, paddingHorizontal: 3},
-  analyze: {alignItems: 'center', backgroundColor: colors.accent, borderRadius: radius.medium, height: 57, justifyContent: 'center', marginTop: 14},
-  analyzeText: {color: colors.ink, fontSize: 15, fontWeight: '900'},
-  loadingRow: {alignItems: 'center', flexDirection: 'row', gap: 10},
-  privacyCard: {alignItems: 'center', backgroundColor: colors.surfaceMuted, borderRadius: radius.medium, flexDirection: 'row', gap: 12, marginTop: 14, padding: 14},
-  shield: {alignItems: 'center', backgroundColor: colors.surface, borderRadius: 15, height: 30, justifyContent: 'center', width: 30},
-  shieldText: {color: colors.ink, fontSize: 13, fontWeight: '900'},
-  privacyCopy: {flex: 1},
-  privacyTitle: {color: colors.text, fontSize: 11, fontWeight: '800'},
-  privacyBody: {color: colors.textMuted, fontSize: 10, lineHeight: 15, marginTop: 3},
-  pressed: {opacity: 0.76},
-  disabled: {opacity: 0.6},
+  page: {backgroundColor: colors.background, flexGrow: 1, paddingBottom: 28, paddingHorizontal: 16},
+  header: {alignItems: 'center', borderBottomColor: colors.line, borderBottomWidth: 1, flexDirection: 'row', marginHorizontal: -16, minHeight: 54, paddingHorizontal: 12},
+  back: {alignItems: 'center', height: 40, justifyContent: 'center', width: 40},
+  backText: {color: colors.ink, fontSize: 31, lineHeight: 32, marginTop: -3},
+  title: {color: colors.ink, flex: 1, fontSize: 17, fontWeight: '900'},
+  headerSpacer: {width: 40},
+  editor: {backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.medium, borderWidth: 1, marginTop: 14, padding: 13},
+  editorHeader: {alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between'},
+  editorLabel: {color: colors.textMuted, fontSize: 10, fontWeight: '800'},
+  pasteButton: {backgroundColor: colors.blueSoft, borderRadius: radius.pill, paddingHorizontal: 9, paddingVertical: 6},
+  pasteText: {color: colors.accent, fontSize: 9, fontWeight: '900'},
+  input: {color: colors.text, fontSize: 14, lineHeight: 22, minHeight: 160, paddingHorizontal: 0, paddingTop: 14},
+  count: {alignSelf: 'flex-end', color: colors.disabledText, fontSize: 9},
+  exampleCard: {backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.medium, borderWidth: 1, marginTop: 12, padding: 13},
+  exampleTitle: {color: colors.textMuted, fontSize: 10, fontWeight: '800'},
+  exampleBody: {color: colors.text, fontSize: 11, lineHeight: 18, marginTop: 7},
+  privacyRow: {alignItems: 'flex-start', flexDirection: 'row', gap: 8, marginTop: 13, paddingHorizontal: 3},
+  shield: {color: colors.textMuted, fontSize: 15},
+  privacyText: {color: colors.textMuted, flex: 1, fontSize: 9, lineHeight: 15},
+  sourceText: {color: colors.accent, fontSize: 10, fontWeight: '700', marginTop: 10},
+  error: {color: colors.danger, fontSize: 11, marginTop: 10},
+  analyze: {alignItems: 'center', backgroundColor: colors.accent, borderRadius: radius.pill, justifyContent: 'center', marginTop: 'auto', minHeight: 50},
+  analyzeText: {color: colors.white, fontSize: 13, fontWeight: '900'},
+  loadingPage: {alignItems: 'center', backgroundColor: colors.blueSoft, flex: 1, justifyContent: 'center', paddingHorizontal: 30},
+  loadingOrb: {alignItems: 'center', backgroundColor: colors.accent, borderColor: '#CFE1FF', borderRadius: 38, borderWidth: 10, height: 76, justifyContent: 'center', width: 76},
+  loadingTitle: {color: colors.ink, fontSize: 17, fontWeight: '900', marginTop: 42, textAlign: 'center'},
+  loadingBody: {color: colors.textMuted, fontSize: 10, lineHeight: 16, marginTop: 8, textAlign: 'center'},
+  loadingSteps: {gap: 10, marginTop: 30, minWidth: 170},
+  loadingDone: {color: '#7EA5D9', fontSize: 11, fontWeight: '700'},
+  loadingActive: {color: colors.accent, fontSize: 11, fontWeight: '900'},
+  loadingPending: {color: colors.disabledText, fontSize: 11, fontWeight: '700'},
+  pressed: {opacity: 0.72},
 });

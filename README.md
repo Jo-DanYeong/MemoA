@@ -11,6 +11,8 @@ MemoA는 카카오톡, 문자, 이메일 등에 포함된 과제·약속·마감
 - 원격 AI 분석 실패 시 한국어 규칙 기반 분석기로 자동 전환
 - 분석 결과 확인·수정 후 일정 저장
 - 일정 목록, 월간 캘린더, 날짜별 일정 확인
+- 저장한 일정을 Android의 `MemoA` 기기 캘린더에 자동 등록
+- 시간 일정은 30분 전 알림, 시간 미지정 일정은 종일 일정으로 등록
 - 일정 완료 상태 변경
 
 ### 계정과 데이터
@@ -25,11 +27,15 @@ MemoA는 카카오톡, 문자, 이메일 등에 포함된 과제·약속·마감
 
 - 다른 앱의 텍스트 공유 메뉴에서 MemoA로 메시지 전달
 - 알림 접근 권한 확인 및 설정 화면 이동
-- 카카오톡·문자 등에서 일정 표현이 포함된 알림 후보 수집
-- 후보는 최대 20개까지 단말에 임시 저장하고 앱이 읽은 뒤 삭제
+- 카카오톡·문자·Instagram DM 등에서 일정 표현이 포함된 알림 후보 수집
+- 일반 본문, 대화형 메시지, 여러 줄 묶음 알림을 읽으며 최신 메시지를 기준으로 일정 후보 판단
+- 후보는 최대 20개까지 단말에 임시 저장하고, 홈에서 직접 선택해 확인한 뒤 일정 저장 또는 삭제 시 제거
+- 로그인·앱 복귀 시 입력 화면이나 권한 설정을 자동으로 열지 않으며, 권한은 설정 탭에서 직접 허용
+- 재설치 이전에 게시된 알림은 제외하고, 날씨·뉴스·배터리 상태 앱은 기본 감지 대상에서 제외 (설정에서 변경 가능)
+- 캘린더 읽기·쓰기 권한 확인 및 설정 화면에서 연동 상태 표시
 - Android 네이티브 코드는 Java로 작성
 
-> Expo Go에서는 사용자 정의 네이티브 모듈을 불러올 수 없으므로 직접 입력, 분석, 일정 및 캘린더 기능만 사용할 수 있습니다. Android 알림 감지와 시스템 공유 기능은 Android 개발 빌드에서 테스트해야 합니다.
+> Expo Go에서는 사용자 정의 네이티브 모듈을 불러올 수 없으므로 직접 입력, 분석, MemoA 내부 일정·캘린더만 사용할 수 있습니다. Android 알림 감지, 시스템 공유, 기기 캘린더 연동은 Android 개발 빌드에서 테스트해야 합니다.
 
 ## 기술 구성
 
@@ -55,6 +61,7 @@ MemoA/
 │  │  ├─ screens/                    로그인, 홈, 입력, 검토, 캘린더, 설정
 │  │  ├─ components/                 공통 UI 컴포넌트
 │  │  ├─ services/api.ts             Spring Boot API 호출
+│  │  ├─ services/deviceCalendar.ts  Android 기기 캘린더 연동
 │  │  ├─ services/localAnalyzer.ts   단말 규칙 기반 분석기
 │  │  └─ native/capture.ts           공유/알림 네이티브 모듈 연결
 │  ├─ android/
@@ -169,6 +176,35 @@ docker compose down
 H2 데이터는 `memoa-data` Docker 볼륨에 유지됩니다.
 
 ## 앱 실행
+
+### IntelliJ 실행 구성
+
+MemoA 루트를 IntelliJ로 열면 실행 구성 목록에서 백엔드와 프론트엔드를 따로 선택할 수 있습니다.
+
+| 실행 구성 | 역할 |
+| --- | --- |
+| `Backend - Spring Boot` | `BackEnd`의 `bootRun`을 실행하고 내장 Tomcat을 8080 포트에 시작 |
+| `Frontend - Android` | 설치된 개발 앱을 USB의 Metro에 연결해 빠르게 실행. 앱이 없으면 최초 설치도 자동 처리 |
+| `Frontend - Reinstall Android` | Java 코드나 Android 설정 변경 후 APK를 다시 빌드하고 설치한 뒤 실행 |
+
+백엔드와 프론트엔드는 서로 독립된 구성입니다. 서버가 필요한 기능을 테스트할 때는 `Backend - Spring Boot`를 먼저 실행한 뒤 `Frontend - Android`를 실행합니다. 화면만 확인할 때는 프론트엔드 구성만 실행해도 됩니다.
+
+IntelliJ를 실행한 상태에서 구성이 바로 보이지 않으면 프로젝트를 닫았다가 `C:\MemoA`를 다시 열거나, `파일 → 디스크에서 모두 다시 로드`를 실행합니다. 이후 오른쪽 위 실행 구성 목록에서 원하는 구성을 선택하고 실행 버튼을 누릅니다.
+
+`Frontend - Android`를 실행하기 전에는 휴대폰 잠금을 해제하고 USB 디버깅을 허용해야 합니다. `.env`의 API 주소는 USB reverse 방식에 맞게 다음 값으로 설정합니다.
+
+```text
+EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8080/api/v1
+```
+
+평소 TypeScript 화면 코드를 테스트할 때는 `Frontend - Android`를 사용합니다. 이미 앱이 설치되어 있으면 APK 빌드와 설치를 생략하고 `127.0.0.1:8081` USB 주소로 앱을 엽니다. Java 코드나 Android 설정을 변경했을 때만 `Frontend - Reinstall Android`를 사용합니다. 별도의 Android App 구성을 함께 실행하거나 Metro에서 `a` 키를 누르면 LAN 주소가 선택될 수 있으므로 누르지 않습니다.
+
+기기 캘린더 연동은 네이티브 모듈을 사용하므로 `expo-calendar`를 처음 받은 뒤에는 반드시 `Frontend - Reinstall Android` 또는 아래 명령으로 개발 앱을 다시 설치해야 합니다.
+
+```powershell
+cd C:\MemoA\FrontEnd
+npm run android:idea:reinstall
+```
 
 ### 테스트 방법 선택
 

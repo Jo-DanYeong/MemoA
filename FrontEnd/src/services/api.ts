@@ -20,9 +20,9 @@ type AuthPayload = {
   email: string;
 };
 
-async function request<T>(path: string, init: RequestInit = {}, token?: string): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}, token?: string, timeoutMs = 8000): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
@@ -67,7 +67,7 @@ export function analyzeMessage(message: string, sourceType: SourceType): Promise
   return request<AnalysisResult>('/analysis', {
     method: 'POST',
     body: JSON.stringify({message, sourceType}),
-  });
+  }, undefined, 30000);
 }
 
 export function fetchSchedules(token: string): Promise<Schedule[]> {

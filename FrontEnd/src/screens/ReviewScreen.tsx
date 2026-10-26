@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from 'react';
+import React, {useState} from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -14,10 +14,10 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {AnalysisResult} from '../domain';
 import {colors, radius} from '../theme';
-import {addDaysISO} from '../utils/date';
 
 type Props = {
   initial: AnalysisResult;
+  originalMessage: string;
   usedLocalFallback: boolean;
   onBack: () => void;
   onSave: (result: AnalysisResult) => Promise<void>;
@@ -30,18 +30,26 @@ type FieldProps = {
   placeholder?: string;
   multiline?: boolean;
   maxLength?: number;
+  needsConfirmation?: boolean;
 };
 
-function Field({label, value, onChangeText, placeholder, multiline, maxLength}: FieldProps) {
+function Field({label, value, onChangeText, placeholder, multiline, maxLength, needsConfirmation}: FieldProps) {
   return (
     <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.fieldHeader}>
+        <View style={styles.labelRow}>
+          <Text style={styles.fieldLabel}>{label}</Text>
+          <View style={styles.aiBadge}><Text style={styles.aiBadgeText}>AI 추출</Text></View>
+          {needsConfirmation ? <View style={styles.confirmBadge}><Text style={styles.confirmBadgeText}>확인 필요</Text></View> : null}
+        </View>
+        <Text style={styles.editIcon}>⌕</Text>
+      </View>
       <TextInput
-        multiline={multiline}
         maxLength={maxLength}
+        multiline={multiline}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor="#9AA39F"
+        placeholderTextColor={colors.disabledText}
         style={[styles.fieldInput, multiline && styles.multiline]}
         value={value}
       />
@@ -49,7 +57,7 @@ function Field({label, value, onChangeText, placeholder, multiline, maxLength}: 
   );
 }
 
-export function ReviewScreen({initial, usedLocalFallback, onBack, onSave}: Props) {
+export function ReviewScreen({initial, originalMessage, usedLocalFallback, onBack, onSave}: Props) {
   const insets = useSafeAreaInsets();
   const [title, setTitle] = useState(initial.title);
   const [details, setDetails] = useState(initial.details ?? '');
@@ -59,16 +67,11 @@ export function ReviewScreen({initial, usedLocalFallback, onBack, onSave}: Props
   const [preparations, setPreparations] = useState((initial.preparations ?? []).join(', '));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const confidence = useMemo(() => Math.round(initial.confidence * 100), [initial.confidence]);
 
   const save = async () => {
     const normalizedTime = dueTime.trim();
-    if (
-      !title.trim()
-      || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)
-      || (normalizedTime !== '' && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(normalizedTime))
-    ) {
-      setError('일정 이름, 날짜(YYYY-MM-DD), 시간(HH:mm) 형식을 확인해주세요.');
+    if (!title.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || (normalizedTime && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(normalizedTime))) {
+      setError('일정 제목, 날짜(YYYY-MM-DD), 시간(HH:mm) 형식을 확인해 주세요.');
       return;
     }
     setBusy(true);
@@ -86,103 +89,94 @@ export function ReviewScreen({initial, usedLocalFallback, onBack, onSave}: Props
       });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '일정을 저장하지 못했습니다.');
-    } finally {
       setBusy(false);
     }
   };
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
-      <ScrollView
-        contentContainerStyle={[styles.page, {paddingTop: Math.max(insets.top, 14), paddingBottom: Math.max(insets.bottom, 28)}]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Pressable accessibilityLabel="뒤로" onPress={onBack} style={styles.back}><Text style={styles.backText}>‹</Text></Pressable>
-          <View style={styles.headerCopy}>
-            <Text style={styles.eyebrow}>AI ANALYSIS</Text>
-            <Text style={styles.title}>분석 결과 확인</Text>
-          </View>
-          <View style={styles.confidence}><Text style={styles.confidenceValue}>{confidence}%</Text><Text style={styles.confidenceLabel}>신뢰도</Text></View>
+      <View style={[styles.header, {paddingTop: Math.max(insets.top, 10)}]}>
+        <Pressable accessibilityLabel="뒤로" onPress={onBack} style={styles.back}><Text style={styles.backText}>‹</Text></Pressable>
+        <Text style={styles.headerTitle}>분석 결과</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <View style={styles.originalCard}>
+          <Text style={styles.originalLabel}>원본 메시지</Text>
+          <Text numberOfLines={2} style={styles.originalText}>{originalMessage || '직접 입력한 메시지'}</Text>
         </View>
 
-        <View style={[styles.notice, usedLocalFallback && styles.noticeFallback]}>
-          <Text style={styles.noticeIcon}>{usedLocalFallback ? '⌁' : '✦'}</Text>
-          <Text style={styles.noticeText}>{usedLocalFallback ? '서버 연결 없이 기본 분석을 사용했어요. 저장 전 내용을 확인해주세요.' : 'AI가 찾은 내용이에요. 틀린 부분은 바로 수정할 수 있어요.'}</Text>
-        </View>
+        {usedLocalFallback ? (
+          <View style={styles.fallback}><Text style={styles.fallbackText}>서버 연결 없이 기본 분석을 사용했어요. 아래 내용을 꼭 확인해 주세요.</Text></View>
+        ) : null}
 
-        <View style={styles.formCard}>
-          <Field label="해야 할 일" onChangeText={setTitle} value={title} />
-          <View style={styles.divider} />
-          <Field label="AI가 해석한 내용" maxLength={1000} multiline onChangeText={setDetails} placeholder="일정에 필요한 내용을 문장으로 확인해 주세요" value={details} />
-          <View style={styles.divider} />
-          <Field label="날짜" onChangeText={setDueDate} placeholder="YYYY-MM-DD" value={dueDate} />
-          <View style={styles.quickDates}>
-            <Pressable onPress={() => setDueDate(addDaysISO(0))} style={styles.quickChip}><Text style={styles.quickText}>오늘</Text></Pressable>
-            <Pressable onPress={() => setDueDate(addDaysISO(1))} style={styles.quickChip}><Text style={styles.quickText}>내일</Text></Pressable>
-            <Pressable onPress={() => setDueDate(addDaysISO(7))} style={styles.quickChip}><Text style={styles.quickText}>일주일 뒤</Text></Pressable>
-          </View>
-          <View style={styles.divider} />
-          <Field label="시간" maxLength={5} onChangeText={setDueTime} placeholder="HH:mm (선택)" value={dueTime} />
-          <View style={styles.divider} />
+        <View style={styles.formList}>
+          <Field label="일정 제목" maxLength={80} onChangeText={setTitle} value={title} />
+          <Field label="날짜" needsConfirmation={initial.needsReview} onChangeText={setDueDate} placeholder="YYYY-MM-DD" value={dueDate} />
+          <Field label="시간" maxLength={5} onChangeText={setDueTime} placeholder="HH:mm" value={dueTime} />
           <Field label="장소" maxLength={180} onChangeText={setLocation} placeholder="장소 미정" value={location} />
-          <View style={styles.divider} />
-          <Field label="준비 사항" maxLength={1000} multiline onChangeText={setPreparations} placeholder="예: 실험 노트, 신분증, 사전 작성 서류" value={preparations} />
+          <Field label="준비 사항" maxLength={1000} multiline onChangeText={setPreparations} placeholder="예: 발표 자료, 노트북" value={preparations} />
+          <Field label="상세 내용" maxLength={1000} multiline onChangeText={setDetails} placeholder="일정에 필요한 보충 설명" value={details} />
         </View>
 
         <View style={styles.reminderCard}>
-          <View style={styles.reminderIcon}><Text style={styles.reminderIconText}>◷</Text></View>
-          <View style={styles.reminderCopy}><Text style={styles.reminderTitle}>기본 알림 예약</Text><Text style={styles.reminderBody}>일정 1시간 전으로 서버에 저장해요</Text></View>
-          <View style={styles.toggle}><View style={styles.toggleKnob} /></View>
+          <View>
+            <Text style={styles.reminderLabel}>알림 설정</Text>
+            <Text style={styles.reminderValue}>30분 전</Text>
+          </View>
+          <Text style={styles.reminderArrow}>⌄</Text>
         </View>
-
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Pressable disabled={busy} onPress={save} style={({pressed}) => [styles.save, pressed && styles.pressed, busy && styles.disabled]}>
-          {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.saveText}>이대로 일정에 저장하기</Text>}
-        </Pressable>
-        <Text style={styles.hint}>저장 후에도 일정 화면에서 완료 여부를 바꿀 수 있어요.</Text>
       </ScrollView>
+
+      <View style={[styles.actionRow, {paddingBottom: Math.max(insets.bottom, 12)}]}>
+        <Pressable disabled={busy} onPress={onBack} style={({pressed}) => [styles.retry, pressed && styles.pressed]}>
+          <Text style={styles.retryText}>다시 분석</Text>
+        </Pressable>
+        <Pressable disabled={busy} onPress={save} style={({pressed}) => [styles.save, pressed && styles.pressed, busy && styles.disabled]}>
+          {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.saveText}>일정 저장</Text>}
+        </Pressable>
+      </View>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   flex: {backgroundColor: colors.background, flex: 1},
-  page: {backgroundColor: colors.background, paddingHorizontal: 20},
-  header: {alignItems: 'center', flexDirection: 'row'},
-  back: {alignItems: 'center', backgroundColor: colors.surfaceMuted, borderRadius: 19, height: 38, justifyContent: 'center', width: 38},
-  backText: {color: colors.ink, fontSize: 29, lineHeight: 31, marginTop: -2},
-  headerCopy: {flex: 1, paddingLeft: 12},
-  eyebrow: {color: colors.textMuted, fontSize: 9, fontWeight: '900', letterSpacing: 1.2},
-  title: {color: colors.ink, fontSize: 23, fontWeight: '900', letterSpacing: -0.6, marginTop: 2},
-  confidence: {alignItems: 'center', backgroundColor: colors.mint, borderRadius: 18, minWidth: 60, paddingHorizontal: 10, paddingVertical: 7},
-  confidenceValue: {color: colors.ink, fontSize: 13, fontWeight: '900'},
-  confidenceLabel: {color: colors.textMuted, fontSize: 8, marginTop: 1},
-  notice: {alignItems: 'center', backgroundColor: colors.mint, borderRadius: radius.medium, flexDirection: 'row', gap: 10, marginTop: 18, padding: 13},
-  noticeFallback: {backgroundColor: colors.peach},
-  noticeIcon: {color: colors.ink, fontSize: 17, fontWeight: '900'},
-  noticeText: {color: colors.text, flex: 1, fontSize: 11, fontWeight: '600', lineHeight: 17},
-  formCard: {backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.large, borderWidth: 1, marginTop: 12, paddingHorizontal: 17},
-  field: {paddingVertical: 14},
-  fieldLabel: {color: colors.textMuted, fontSize: 10, fontWeight: '800', marginBottom: 7},
-  fieldInput: {color: colors.text, fontSize: 15, fontWeight: '700', minHeight: 24, padding: 0},
-  multiline: {fontSize: 13, fontWeight: '500', lineHeight: 20, minHeight: 58, textAlignVertical: 'top'},
-  divider: {backgroundColor: colors.line, height: StyleSheet.hairlineWidth},
-  quickDates: {flexDirection: 'row', gap: 6, marginBottom: 13, marginTop: -5},
-  quickChip: {backgroundColor: colors.surfaceMuted, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 6},
-  quickText: {color: colors.textMuted, fontSize: 10, fontWeight: '700'},
-  reminderCard: {alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.medium, flexDirection: 'row', marginTop: 12, padding: 14},
-  reminderIcon: {alignItems: 'center', backgroundColor: colors.peach, borderRadius: 17, height: 34, justifyContent: 'center', width: 34},
-  reminderIconText: {color: colors.ink, fontSize: 17, fontWeight: '900'},
-  reminderCopy: {flex: 1, paddingHorizontal: 11},
-  reminderTitle: {color: colors.text, fontSize: 12, fontWeight: '800'},
-  reminderBody: {color: colors.textMuted, fontSize: 9, marginTop: 3},
-  toggle: {backgroundColor: colors.ink, borderRadius: 12, height: 24, padding: 3, width: 43},
-  toggleKnob: {alignSelf: 'flex-end', backgroundColor: colors.white, borderRadius: 9, height: 18, width: 18},
-  error: {color: colors.danger, fontSize: 12, marginTop: 11, paddingHorizontal: 3},
-  save: {alignItems: 'center', backgroundColor: colors.ink, borderRadius: radius.medium, height: 56, justifyContent: 'center', marginTop: 14},
-  saveText: {color: colors.white, fontSize: 15, fontWeight: '900'},
-  hint: {color: colors.textMuted, fontSize: 10, marginTop: 10, textAlign: 'center'},
-  pressed: {opacity: 0.77},
+  header: {alignItems: 'center', backgroundColor: colors.surface, borderBottomColor: colors.line, borderBottomWidth: 1, flexDirection: 'row', paddingHorizontal: 12, paddingBottom: 9},
+  back: {alignItems: 'center', height: 40, justifyContent: 'center', width: 40},
+  backText: {color: colors.ink, fontSize: 31, lineHeight: 32, marginTop: -3},
+  headerTitle: {color: colors.ink, flex: 1, fontSize: 17, fontWeight: '900'},
+  headerSpacer: {width: 40},
+  page: {padding: 12, paddingBottom: 18},
+  originalCard: {backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.medium, borderWidth: 1, padding: 12},
+  originalLabel: {color: colors.textMuted, fontSize: 9, fontWeight: '800'},
+  originalText: {color: colors.text, fontSize: 10, lineHeight: 16, marginTop: 5},
+  fallback: {backgroundColor: colors.amberSoft, borderRadius: radius.small, marginTop: 8, padding: 10},
+  fallbackText: {color: colors.amber, fontSize: 9, fontWeight: '700', lineHeight: 14},
+  formList: {gap: 8, marginTop: 10},
+  field: {backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.medium, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10},
+  fieldHeader: {alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between'},
+  labelRow: {alignItems: 'center', flexDirection: 'row', gap: 5},
+  fieldLabel: {color: colors.textMuted, fontSize: 9, fontWeight: '800'},
+  aiBadge: {backgroundColor: colors.blueSoft, borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 3},
+  aiBadgeText: {color: colors.accent, fontSize: 7, fontWeight: '900'},
+  confirmBadge: {backgroundColor: colors.amberSoft, borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 3},
+  confirmBadgeText: {color: colors.amber, fontSize: 7, fontWeight: '900'},
+  editIcon: {color: colors.textMuted, fontSize: 13},
+  fieldInput: {color: colors.text, fontSize: 13, fontWeight: '800', minHeight: 25, padding: 0, paddingTop: 5},
+  multiline: {fontSize: 11, fontWeight: '500', lineHeight: 17, minHeight: 42, textAlignVertical: 'top'},
+  reminderCard: {alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.medium, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, padding: 12},
+  reminderLabel: {color: colors.textMuted, fontSize: 9, fontWeight: '800'},
+  reminderValue: {color: colors.text, fontSize: 12, fontWeight: '900', marginTop: 5},
+  reminderArrow: {color: colors.text, fontSize: 18},
+  error: {color: colors.danger, fontSize: 10, marginTop: 9},
+  actionRow: {backgroundColor: colors.surface, borderTopColor: colors.line, borderTopWidth: 1, flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 10},
+  retry: {alignItems: 'center', borderColor: colors.accent, borderRadius: radius.pill, borderWidth: 1, flex: 1, height: 46, justifyContent: 'center'},
+  retryText: {color: colors.accent, fontSize: 12, fontWeight: '900'},
+  save: {alignItems: 'center', backgroundColor: colors.accent, borderRadius: radius.pill, flex: 1.2, height: 46, justifyContent: 'center'},
+  saveText: {color: colors.white, fontSize: 12, fontWeight: '900'},
+  pressed: {opacity: 0.72},
   disabled: {opacity: 0.6},
 });

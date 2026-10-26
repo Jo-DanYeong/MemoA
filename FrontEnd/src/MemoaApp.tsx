@@ -2,59 +2,81 @@ import React, {useCallback, useEffect, useState} from 'react';
 import {AppState, Linking, StyleSheet, Text, View} from 'react-native';
 
 import {BottomNav, MainTab} from './components/BottomNav';
-import {AnalysisResult, Schedule, SourceType, UserSession} from './domain';
-import {drainCapturedNotifications, getInitialSharedText, getSharedTextFromUrl} from './native/capture';
+import {AnalysisResult, CapturedNotification, Schedule, SourceType, UserSession} from './domain';
+import {
+  getCapturedNotifications,
+  getInitialSharedText,
+  getSharedTextFromUrl,
+  removeCapturedNotification,
+} from './native/capture';
 import {CalendarScreen} from './screens/CalendarScreen';
 import {ComposerScreen} from './screens/ComposerScreen';
 import {HomeScreen} from './screens/HomeScreen';
 import {AuthScreen} from './screens/AuthScreen';
 import {ReviewScreen} from './screens/ReviewScreen';
+import {ScheduleListScreen} from './screens/ScheduleListScreen';
 import {SettingsScreen} from './screens/SettingsScreen';
 import {analyzeMessage, createSchedule, fetchSchedules, login, signUp, updateSchedule} from './services/api';
+import {syncScheduleToDeviceCalendar} from './services/deviceCalendar';
 import {analyzeLocally} from './services/localAnalyzer';
 import {colors} from './theme';
-import {addDaysISO} from './utils/date';
 
-function demoSchedules(): Schedule[] {
-  return [
-    {
-      id: 'demo-science',
-      title: '과학 수행평가 보고서 제출',
-      details: '과학실에서 실험 노트와 USB를 챙겨 실험 결과표 최종본을 제출합니다.',
-      dueDate: addDaysISO(1),
-      dueTime: '15:00',
-      location: '과학실',
-      preparations: ['실험 노트', 'USB'],
-      sourceType: 'SHARE',
-      confidence: 0.94,
-      needsReview: false,
-      status: 'TODO',
-    },
-    {
-      id: 'demo-meeting',
-      title: '동아리 프로젝트 회의',
-      details: '도서관 세미나실에서 기획안을 함께 보며 발표 역할을 정합니다.',
-      dueDate: addDaysISO(3),
-      dueTime: '17:30',
-      location: '도서관 세미나실',
-      preparations: ['기획안'],
-      sourceType: 'ANDROID_NOTIFICATION',
-      confidence: 0.89,
-      needsReview: false,
-      status: 'TODO',
-    },
-  ];
+function messageFromNotification(candidate: CapturedNotification): string {
+  const sourceTitle = candidate.title.trim();
+  const body = candidate.text.trim();
+  if (!sourceTitle || body.includes(sourceTitle)) {
+    return body;
+  }
+
+  const combined = `${sourceTitle} ${body}`.replace(/\s+/g, ' ').trim();
+  if (/(?:충전|완충|\d{1,3}\s*%)/.test(combined)) {
+    return combined;
+  }
+  return `${body}\n알림 출처: ${sourceTitle}`;
 }
+
+// function demoSchedules(): Schedule[] {
+//   return [
+//     {
+//       id: 'demo-science',
+//       title: '과학 수행평가 보고서 제출',
+//       details: '과학실에서 실험 노트와 USB를 챙겨 실험 결과표 최종본을 제출합니다.',
+//       dueDate: addDaysISO(1),
+//       dueTime: '15:00',
+//       location: '과학실',
+//       preparations: ['실험 노트', 'USB'],
+//       sourceType: 'SHARE',
+//       confidence: 0.94,
+//       needsReview: false,
+//       status: 'TODO',
+//     },
+//     {
+//       id: 'demo-meeting',
+//       title: '동아리 프로젝트 회의',
+//       details: '도서관 세미나실에서 기획안을 함께 보며 발표 역할을 정합니다.',
+//       dueDate: addDaysISO(3),
+//       dueTime: '17:30',
+//       location: '도서관 세미나실',
+//       preparations: ['기획안'],
+//       sourceType: 'ANDROID_NOTIFICATION',
+//       confidence: 0.89,
+//       needsReview: false,
+//       status: 'TODO',
+//     },
+//   ];
+// }
 
 export function MemoaApp() {
   const [session, setSession] = useState<UserSession | null>(null);
-  const [tab, setTab] = useState<MainTab>('home');
-  const [schedules, setSchedules] = useState<Schedule[]>(demoSchedules);
+  const [tab, setTab] = useState<MainTab | 'compose'>('home');
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [captureMessage, setCaptureMessage] = useState('');
   const [captureSource, setCaptureSource] = useState<SourceType>('DIRECT');
   const [usedLocalFallback, setUsedLocalFallback] = useState(false);
   const [toast, setToast] = useState('');
+  const [notificationCandidates, setNotificationCandidates] = useState<CapturedNotification[]>([]);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -62,6 +84,7 @@ export function MemoaApp() {
   }, []);
 
   const openCapturedMessage = useCallback((message: string, source: SourceType) => {
+    setSelectedCandidateId(null);
     setCaptureMessage(message);
     setCaptureSource(source);
     setAnalysis(null);
@@ -84,14 +107,18 @@ export function MemoaApp() {
   }, [openCapturedMessage]);
 
   useEffect(() => {
-    if (!session) {
+    if (!session || tab !== 'home') {
       return;
     }
+    let cancelled = false;
     const checkNotifications = async () => {
-      const pending = await drainCapturedNotifications();
-      if (pending.length > 0) {
-        openCapturedMessage(pending[0].text, 'ANDROID_NOTIFICATION');
-        showToast(`${pending[0].appName} 알림에서 일정 후보를 찾았어요.`);
+      try {
+        const pending = await getCapturedNotifications();
+        if (!cancelled) {
+          setNotificationCandidates(pending);
+        }
+      } catch {
+        // A temporary listener error must not interrupt the home screen.
       }
     };
     checkNotifications();
@@ -100,16 +127,27 @@ export function MemoaApp() {
         checkNotifications();
       }
     });
-    return () => subscription.remove();
-  }, [openCapturedMessage, session, showToast]);
+    const refreshTimer = setInterval(() => {
+      if (AppState.currentState === 'active') {
+        checkNotifications();
+      }
+    }, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(refreshTimer);
+      subscription.remove();
+    };
+  }, [session, tab]);
 
   useEffect(() => {
     if (!session?.token) {
       return;
     }
+    let cancelled = false;
     fetchSchedules(session.token)
-      .then(remoteSchedules => setSchedules(remoteSchedules))
-      .catch(() => showToast('서버의 일정을 불러오지 못했어요.'));
+      .then(remoteSchedules => { if (!cancelled) { setSchedules(remoteSchedules); } })
+      .catch(() => { if (!cancelled) { showToast('서버의 일정을 불러오지 못했어요.'); } });
+    return () => { cancelled = true; };
   }, [session, showToast]);
 
   const authenticate = async (mode: 'login' | 'signup', values: {name: string; email: string; password: string}) => {
@@ -123,11 +161,45 @@ export function MemoaApp() {
 
   const enterGuest = () => {
     setSession({userId: 'guest', displayName: '메모', guest: true});
-    setSchedules(demoSchedules());
+    setSchedules([]);
     setTab(captureMessage ? 'compose' : 'home');
   };
 
+  const openNotification = (candidate: CapturedNotification) => {
+    openCapturedMessage(messageFromNotification(candidate), 'ANDROID_NOTIFICATION');
+    setSelectedCandidateId(candidate.id);
+  };
+
+  const dismissNotification = async (candidate: CapturedNotification) => {
+    try {
+      await removeCapturedNotification(candidate.id);
+      setNotificationCandidates(current => current.filter(item => item.id !== candidate.id));
+    } catch {
+      showToast('일정 후보를 삭제하지 못했어요. 다시 시도해 주세요.');
+    }
+  };
+
+  const composeMessage = () => {
+    setSelectedCandidateId(null);
+    setCaptureMessage('');
+    setCaptureSource('DIRECT');
+    setTab('compose');
+  };
+
+  const logout = () => {
+    setSession(null);
+    setSchedules([]);
+    setNotificationCandidates([]);
+    setSelectedCandidateId(null);
+    setAnalysis(null);
+    setCaptureMessage('');
+    setCaptureSource('DIRECT');
+    setTab('home');
+  };
+
   const runAnalysis = async (message: string, source: SourceType): Promise<AnalysisResult> => {
+    setCaptureMessage(message);
+    setCaptureSource(source);
     try {
       const result = await analyzeMessage(message, source);
       setUsedLocalFallback(false);
@@ -143,11 +215,25 @@ export function MemoaApp() {
       ? await createSchedule(result, session.token)
       : {...result, id: `local-${Date.now()}`, status: 'TODO' as const, createdAt: new Date().toISOString()};
     setSchedules(current => [saved, ...current]);
+    if (selectedCandidateId) {
+      await removeCapturedNotification(selectedCandidateId).catch(() => undefined);
+      setNotificationCandidates(current => current.filter(item => item.id !== selectedCandidateId));
+      setSelectedCandidateId(null);
+    }
+    const calendarSync = await syncScheduleToDeviceCalendar(saved);
     setAnalysis(null);
     setCaptureMessage('');
     setCaptureSource('DIRECT');
     setTab('home');
-    showToast('일정에 안전하게 저장했어요.');
+    if (calendarSync === 'synced') {
+      showToast('MemoA와 휴대폰 캘린더에 저장했어요.');
+    } else if (calendarSync === 'permission-denied') {
+      showToast('MemoA에 저장했어요. 설정에서 캘린더 연동을 켜 주세요.');
+    } else if (calendarSync === 'failed') {
+      showToast('MemoA에는 저장했지만 휴대폰 캘린더 연동에 실패했어요.');
+    } else {
+      showToast('일정에 안전하게 저장했어요.');
+    }
   };
 
   const toggleSchedule = async (schedule: Schedule) => {
@@ -172,6 +258,7 @@ export function MemoaApp() {
     return (
       <ReviewScreen
         initial={analysis}
+        originalMessage={captureMessage}
         onBack={() => setAnalysis(null)}
         onSave={saveAnalysis}
         usedLocalFallback={usedLocalFallback}
@@ -185,30 +272,37 @@ export function MemoaApp() {
         {tab === 'home' ? (
           <HomeScreen
             onCalendar={() => setTab('calendar')}
-            onCompose={() => {setCaptureMessage(''); setCaptureSource('DIRECT'); setTab('compose');}}
+            onCompose={composeMessage}
+            notificationCandidates={notificationCandidates}
+            onOpenNotification={openNotification}
+            onDismissNotification={dismissNotification}
             onToggle={toggleSchedule}
             schedules={schedules}
             session={session}
           />
         ) : null}
-        {tab === 'calendar' ? <CalendarScreen onToggle={toggleSchedule} schedules={schedules} /> : null}
+        {tab === 'calendar' ? (
+          <CalendarScreen
+            onCompose={composeMessage}
+            onToggle={toggleSchedule}
+            schedules={schedules}
+          />
+        ) : null}
+        {tab === 'list' ? (
+          <ScheduleListScreen onToggle={toggleSchedule} schedules={schedules} />
+        ) : null}
         {tab === 'compose' ? (
           <ComposerScreen
             initialMessage={captureMessage}
             initialSource={captureSource}
             onAnalyze={runAnalysis}
             onAnalyzed={setAnalysis}
+            onBack={() => setTab('home')}
           />
         ) : null}
-        {tab === 'settings' ? <SettingsScreen onLogout={() => {setSession(null); setTab('home');}} session={session} /> : null}
+        {tab === 'settings' ? <SettingsScreen onLogout={logout} session={session} /> : null}
       </View>
-      <BottomNav active={tab} onChange={nextTab => {
-        if (nextTab === 'compose' && tab !== 'compose') {
-          setCaptureMessage('');
-          setCaptureSource('DIRECT');
-        }
-        setTab(nextTab);
-      }} />
+      {tab !== 'compose' ? <BottomNav active={tab} onChange={setTab} /> : null}
       {toast ? <View pointerEvents="none" style={styles.toast}><Text style={styles.toastText}>{toast}</Text></View> : null}
     </View>
   );
@@ -217,6 +311,6 @@ export function MemoaApp() {
 const styles = StyleSheet.create({
   app: {backgroundColor: colors.background, flex: 1},
   content: {flex: 1},
-  toast: {alignSelf: 'center', backgroundColor: colors.ink, borderRadius: 18, bottom: 88, maxWidth: '88%', paddingHorizontal: 17, paddingVertical: 11, position: 'absolute'},
+  toast: {alignSelf: 'center', backgroundColor: colors.ink, borderRadius: 14, bottom: 88, maxWidth: '88%', paddingHorizontal: 17, paddingVertical: 11, position: 'absolute'},
   toastText: {color: colors.white, fontSize: 11, fontWeight: '800', textAlign: 'center'},
 });

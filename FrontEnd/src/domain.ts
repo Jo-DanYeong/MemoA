@@ -30,6 +30,7 @@ export type Schedule = AnalysisResult & {
 
 export type CapturedNotification = {
   id: string;
+  packageName?: string;
   appName: string;
   title: string;
   text: string;

@@ -10,11 +10,12 @@ import {calendarCells, formatKoreanDate, shiftMonth, todayISO} from '../utils/da
 type Props = {
   schedules: Schedule[];
   onToggle: (schedule: Schedule) => void;
+  onCompose: () => void;
 };
 
 const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
 
-export function CalendarScreen({schedules, onToggle}: Props) {
+export function CalendarScreen({schedules, onToggle, onCompose}: Props) {
   const insets = useSafeAreaInsets();
   const [month, setMonth] = useState(() => new Date());
   const [selected, setSelected] = useState(todayISO());
@@ -27,13 +28,7 @@ export function CalendarScreen({schedules, onToggle}: Props) {
   return (
     <ScrollView contentContainerStyle={[styles.page, {paddingTop: Math.max(insets.top, 18)}]} showsVerticalScrollIndicator={false}>
       <View style={styles.topRow}>
-        <View>
-          <Text style={styles.eyebrow}>MY SCHEDULE</Text>
-          <Text style={styles.title}>한눈에 보는 일정</Text>
-        </View>
-        <Pressable onPress={() => {setMonth(new Date()); setSelected(todayISO());}} style={styles.todayButton}>
-          <Text style={styles.todayText}>오늘</Text>
-        </Pressable>
+        <Text style={styles.title}>캘린더</Text>
       </View>
 
       <View style={styles.calendar}>
@@ -73,7 +68,7 @@ export function CalendarScreen({schedules, onToggle}: Props) {
       </View>
       <View style={styles.list}>
         {selectedSchedules.length ? selectedSchedules.map(schedule => (
-          <ScheduleCard key={schedule.id} onToggle={onToggle} schedule={schedule} />
+          <ScheduleCard compact key={schedule.id} onToggle={onToggle} schedule={schedule} />
         )) : (
           <View style={styles.empty}>
             <Text style={styles.emptyMark}>· · ·</Text>
@@ -82,41 +77,44 @@ export function CalendarScreen({schedules, onToggle}: Props) {
           </View>
         )}
       </View>
+      <Pressable accessibilityLabel="새 일정 분석" onPress={onCompose} style={({pressed}) => [styles.floatingButton, pressed && styles.pressed]}>
+        <Text style={styles.floatingButtonText}>+</Text>
+      </Pressable>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  page: {backgroundColor: colors.background, paddingBottom: 30, paddingHorizontal: 20},
-  topRow: {alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between'},
-  eyebrow: {color: colors.textMuted, fontSize: 10, fontWeight: '900', letterSpacing: 1.3},
-  title: {color: colors.ink, fontSize: 26, fontWeight: '900', letterSpacing: -0.8, marginTop: 4},
-  todayButton: {backgroundColor: colors.surfaceMuted, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 9},
-  todayText: {color: colors.ink, fontSize: 11, fontWeight: '900'},
-  calendar: {backgroundColor: colors.surface, borderColor: colors.line, borderRadius: radius.large, borderWidth: 1, marginTop: 21, padding: 15},
-  monthHeader: {alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 13},
+  page: {backgroundColor: colors.background, minHeight: '100%', paddingBottom: 30, paddingHorizontal: 16},
+  topRow: {alignItems: 'center', flexDirection: 'row', minHeight: 52},
+  title: {color: colors.ink, fontSize: 20, fontWeight: '900', letterSpacing: -0.5},
+  calendar: {backgroundColor: colors.surface, borderBottomColor: colors.line, borderBottomWidth: 1, marginHorizontal: -16, paddingBottom: 12, paddingHorizontal: 16},
+  monthHeader: {alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, marginTop: 5},
   monthTitle: {color: colors.ink, fontSize: 16, fontWeight: '900'},
-  arrow: {alignItems: 'center', backgroundColor: colors.surfaceMuted, borderRadius: 16, height: 32, justifyContent: 'center', width: 32},
+  arrow: {alignItems: 'center', height: 32, justifyContent: 'center', width: 32},
   arrowText: {color: colors.ink, fontSize: 24, lineHeight: 27},
   weekRow: {flexDirection: 'row'},
   weekday: {color: colors.textMuted, fontSize: 10, fontWeight: '700', paddingVertical: 8, textAlign: 'center', width: '14.2857%'},
   sunday: {color: colors.coral},
   grid: {flexDirection: 'row', flexWrap: 'wrap'},
-  dayCell: {alignItems: 'center', height: 45, justifyContent: 'center', width: '14.2857%'},
-  dayCircle: {alignItems: 'center', borderRadius: 18, height: 37, justifyContent: 'center', width: 37},
-  daySelected: {backgroundColor: colors.ink},
-  dayToday: {backgroundColor: colors.mint},
+  dayCell: {alignItems: 'center', height: 41, justifyContent: 'center', width: '14.2857%'},
+  dayCircle: {alignItems: 'center', borderRadius: 16, height: 32, justifyContent: 'center', width: 32},
+  daySelected: {backgroundColor: colors.accent},
+  dayToday: {backgroundColor: colors.blueSoft},
   dayText: {color: colors.text, fontSize: 12, fontWeight: '700'},
   dayTextSelected: {color: colors.white},
-  dot: {backgroundColor: colors.coral, borderRadius: 2, bottom: 4, height: 4, position: 'absolute', width: 4},
-  dotSelected: {backgroundColor: colors.accent},
-  selectionHeader: {alignItems: 'center', flexDirection: 'row', marginBottom: 12, marginTop: 23},
-  selectionTitle: {color: colors.ink, fontSize: 18, fontWeight: '900'},
-  countPill: {backgroundColor: colors.accent, borderRadius: radius.pill, marginLeft: 8, paddingHorizontal: 8, paddingVertical: 4},
-  countText: {color: colors.ink, fontSize: 9, fontWeight: '900'},
+  dot: {backgroundColor: colors.accent, borderRadius: 2, bottom: 4, height: 4, position: 'absolute', width: 4},
+  dotSelected: {backgroundColor: colors.white},
+  selectionHeader: {alignItems: 'center', flexDirection: 'row', marginBottom: 11, marginTop: 17},
+  selectionTitle: {color: colors.textMuted, fontSize: 11, fontWeight: '800'},
+  countPill: {backgroundColor: colors.blueSoft, borderRadius: radius.pill, marginLeft: 8, paddingHorizontal: 8, paddingVertical: 4},
+  countText: {color: colors.accent, fontSize: 9, fontWeight: '900'},
   list: {gap: 10},
   empty: {alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.medium, padding: 29},
-  emptyMark: {color: colors.accentDark, fontSize: 22, fontWeight: '900', letterSpacing: 3},
+  emptyMark: {color: colors.accent, fontSize: 22, fontWeight: '900', letterSpacing: 3},
   emptyTitle: {color: colors.text, fontSize: 14, fontWeight: '800', marginTop: 4},
   emptyBody: {color: colors.textMuted, fontSize: 10, marginTop: 5},
+  floatingButton: {alignItems: 'center', alignSelf: 'flex-end', backgroundColor: colors.accent, borderRadius: 26, height: 52, justifyContent: 'center', marginTop: 16, width: 52},
+  floatingButtonText: {color: colors.white, fontSize: 29, fontWeight: '400', lineHeight: 31},
+  pressed: {opacity: 0.75},
 });

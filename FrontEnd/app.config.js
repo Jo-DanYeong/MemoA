@@ -7,11 +7,16 @@ module.exports = {
     userInterfaceStyle: 'light',
     scheme: 'memoa',
     platforms: ['android', 'ios'],
+    plugins: ['expo-calendar'],
     extra: {
       apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || '',
     },
     android: {
       package: 'com.frontend',
+      permissions: [
+        'android.permission.READ_CALENDAR',
+        'android.permission.WRITE_CALENDAR',
+      ],
     },
     ios: {
       bundleIdentifier: 'org.reactjs.native.example.FrontEnd',

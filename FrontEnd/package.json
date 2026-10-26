@@ -6,6 +6,8 @@
   "scripts": {
     "android": "expo start --go --android",
     "android:apk": "cd android && set NODE_ENV=production&& gradlew.bat assembleRelease",
+    "android:idea": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-android-dev.ps1",
+    "android:idea:reinstall": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-android-dev.ps1 -Reinstall",
     "android:native": "expo run:android",
     "ios": "expo start --go --ios",
     "ios:native": "expo run:ios",
@@ -18,6 +20,7 @@
   },
   "dependencies": {
     "expo": "~57.0.20",
+    "expo-calendar": "~57.0.6",
     "expo-constants": "~57.0.17",
     "expo-dev-client": "~57.0.18",
     "expo-modules-core": "~57.0.16",

@@ -1,0 +1,1 @@
+const fs=require('fs'),path=require('path');const p=path.join(__dirname,'build.cjs');let code=fs.readFileSync(p,'utf8');code=code.replace("shared?'공유받은 메시지를 확인해 주세요'","shared?'공유받은 메시지를\\n확인해 주세요'");code=code.replace('“팀 프로젝트 회의” 일정과 알림이\\n삭제돼요. 삭제 후에는 되돌릴 수 없어요.','“팀 프로젝트 회의” 일정과\\n알림이 삭제돼요. 삭제 후에는\\n되돌릴 수 없어요.');fs.writeFileSync(p,code);
