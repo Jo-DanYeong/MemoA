@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 60
     defaults:
       run:
@@ -32,8 +32,8 @@ jobs:
     env:
       CI: 'true'
       NODE_ENV: production
-      # ExpoModulesJSI uses Swift tools 6.2; macos-15 defaults to Xcode 16.4 / Swift 6.1.
-      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      # Match Expo SDK 57's supported Xcode image; older Swift C++ interop fails in ExpoModulesJSI.
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
       MEMOA_IOS_SIDELOAD: '1'
       EXPO_PUBLIC_API_BASE_URL: ${{ inputs.api_base_url || vars.MEMOA_IOS_TEST_API_BASE_URL }}
     steps:

@@ -17,7 +17,8 @@ GitHub Actions의 `iOS - Unsigned IPA`를 사용합니다.
 - 예: `http://192.168.1.10:8080/api/v1`. `127.0.0.1`과 `localhost`는 iPhone 자신을 가리키므로 사용하지 않습니다.
 
 실기기용 빌드는 표준 GitHub-hosted macOS runner에서 진행합니다.
-Expo 라이브러리에 필요한 Swift 버전을 위해 Xcode 26.3을 명시합니다.
+SDK 57의 [공식 빌드 환경](https://docs.expo.dev/build-reference/infrastructure/)에 맞춰
+macOS 26과 Xcode 26.6을 명시합니다. 테스트 iPhone은 iOS 16.4 이상이어야 합니다.
 공개 저장소에서는 표준 runner 사용이 무료이며, 저장소 공개 범위를 변경하지 않습니다.
 소스의 로컬 `ios/`와 `android/`는 건드리지 않고 일회용 runner 안에서 iOS 프로젝트만 재생성합니다.
 로컬 HTTP 개발 서버 연결은 이 개인 테스트 IPA에서만 허용합니다.
