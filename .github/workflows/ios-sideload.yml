@@ -1,0 +1,86 @@
+name: iOS - Unsigned IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: 'Backend URL reachable from the iPhone (blank uses MEMOA_IOS_TEST_API_BASE_URL)'
+        required: false
+        type: string
+  push:
+    branches:
+      - codex/ios-sideload-test
+    paths:
+      - FrontEnd/**
+      - .github/workflows/ios-sideload.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-sideload-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: FrontEnd
+        shell: bash
+    env:
+      CI: 'true'
+      NODE_ENV: production
+      MEMOA_IOS_SIDELOAD: '1'
+      EXPO_PUBLIC_API_BASE_URL: ${{ inputs.api_base_url || vars.MEMOA_IOS_TEST_API_BASE_URL }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: FrontEnd/package-lock.json
+
+      - name: Install JavaScript dependencies
+        run: npm ci --include=dev --no-audit --no-fund
+
+      - name: Validate build settings and shell script
+        run: |
+          node -e "const {expo} = require('./app.config'); console.log('iPhone test bundle:', expo.ios.bundleIdentifier);"
+          bash -n scripts/build-ios-unsigned.sh
+          npx tsc --noEmit
+
+      - name: Generate the iOS project for the installed Expo SDK
+        # This only regenerates ios/ in the disposable runner checkout, not the local Android project.
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: Install iOS native dependencies
+        working-directory: FrontEnd/ios
+        run: pod install --repo-update
+
+      - name: Build and package unsigned iPhone IPA
+        run: bash scripts/build-ios-unsigned.sh
+
+      - name: Upload IPA and checksum
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: memoa-ios-unsigned
+          path: |
+            FrontEnd/build/ios/MemoA-unsigned.ipa
+            FrontEnd/build/ios/MemoA-unsigned.ipa.sha256
+            FrontEnd/build/ios/build-info.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload build diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: memoa-ios-build-diagnostics
+          path: FrontEnd/build/ios/*.log
+          if-no-files-found: ignore
+          retention-days: 3

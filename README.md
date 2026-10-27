@@ -37,6 +37,13 @@ MemoA는 카카오톡, 문자, 이메일 등에 포함된 과제·약속·마감
 
 > Expo Go에서는 사용자 정의 네이티브 모듈을 불러올 수 없으므로 직접 입력, 분석, MemoA 내부 일정·캘린더만 사용할 수 있습니다. Android 알림 감지, 시스템 공유, 기기 캘린더 연동은 Android 개발 빌드에서 테스트해야 합니다.
 
+### iPhone 개인 테스트
+
+Windows와 무료 Apple 계정으로 실기기 테스트를 준비하는 방법은
+[iPhone 개인 테스트 안내](FrontEnd/docs/ios-sideload.md)를 참고하세요.
+GitHub Actions에서 서명 없는 Release IPA를 만들고 Sideloadly로 직접 서명·설치합니다.
+현재 Android 전용 기능과 iPhone에서 확인할 수 있는 기능은 안내 문서에 구분했습니다.
+
 ## 기술 구성
 
 | 영역 | 기술 |
