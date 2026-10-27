@@ -20,6 +20,8 @@ Desktop.ini
 *.pem
 *.p12
 *.pfx
+*.p8
+*.mobileprovision
 
 # Logs, process files, and test output
 *.log
@@ -84,3 +86,8 @@ google-services.json
 
 # Backend local database
 BackEnd/data/
+/data/
+*.mv.db
+*.trace.db
+*.h2.db
+*.lock.db
