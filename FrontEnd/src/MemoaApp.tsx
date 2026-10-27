@@ -35,37 +35,6 @@ function messageFromNotification(candidate: CapturedNotification): string {
   return `${body}\n알림 출처: ${sourceTitle}`;
 }
 
-// function demoSchedules(): Schedule[] {
-//   return [
-//     {
-//       id: 'demo-science',
-//       title: '과학 수행평가 보고서 제출',
-//       details: '과학실에서 실험 노트와 USB를 챙겨 실험 결과표 최종본을 제출합니다.',
-//       dueDate: addDaysISO(1),
-//       dueTime: '15:00',
-//       location: '과학실',
-//       preparations: ['실험 노트', 'USB'],
-//       sourceType: 'SHARE',
-//       confidence: 0.94,
-//       needsReview: false,
-//       status: 'TODO',
-//     },
-//     {
-//       id: 'demo-meeting',
-//       title: '동아리 프로젝트 회의',
-//       details: '도서관 세미나실에서 기획안을 함께 보며 발표 역할을 정합니다.',
-//       dueDate: addDaysISO(3),
-//       dueTime: '17:30',
-//       location: '도서관 세미나실',
-//       preparations: ['기획안'],
-//       sourceType: 'ANDROID_NOTIFICATION',
-//       confidence: 0.89,
-//       needsReview: false,
-//       status: 'TODO',
-//     },
-//   ];
-// }
-
 export function MemoaApp() {
   const [session, setSession] = useState<UserSession | null>(null);
   const [tab, setTab] = useState<MainTab | 'compose'>('home');
