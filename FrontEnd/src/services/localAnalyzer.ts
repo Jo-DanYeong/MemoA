@@ -1,5 +1,6 @@
 import {AnalysisResult, SourceType} from '../domain';
 import {toISODate} from '../utils/date';
+import {messageBody} from './messageContent';
 
 const WEEKDAY_INDEX: Record<string, number> = {
   일요일: 0,
@@ -97,7 +98,7 @@ function formatScheduleTitle(message: string, title: string, location: string | 
   const category = existingPrefix?.[1] ?? titleCategory(message);
   const core = title.replace(/^\[[^\]]+]\s*/, '').replace(/[.!?]+$/, '').trim() || '새로운 일정';
   const contexts: string[] = [];
-  const explicitContext = message.match(/(?:참석자|기관|발신자|대화방|알림\s*출처)\s*[:：]\s*([^,.;\n]+)/)?.[1]?.trim();
+  const explicitContext = message.match(/(?:참석자|기관)\s*[:：]\s*([^,.;\n]+)/)?.[1]?.trim();
   if (explicitContext) {
     contexts.push(explicitContext);
   }
@@ -220,11 +221,7 @@ function titleFromMessage(message: string, location: string | null, preparations
   }
 
   cleaned = cleaned.replace(/(?:방문해서\s*)?(?:가|오)기\s*$/g, '').trim();
-  const firstSentence = cleaned.split(/[.!?\n]/)[0].trim();
-  if (!firstSentence) {
-    return '새로운 일정';
-  }
-  return firstSentence.length > 28 ? `${firstSentence.slice(0, 28)}…` : firstSentence;
+  return '일정 내용 확인';
 }
 
 function valueAfterLabel(message: string, labels: string[]): string | null {
@@ -298,17 +295,20 @@ function detailsFromMessage(message: string): string {
 }
 
 export function analyzeLocally(message: string, sourceType: SourceType = 'DIRECT'): AnalysisResult {
+  message = messageBody(message);
   const location = locationFromMessage(message);
   const preparations = preparationsFromMessage(message);
   const dueTime = timeFromMessage(message);
   const hasDateSignal = /(오늘|내일|모레|\d{1,2}월\s*\d{1,2}일|[월화수목금토일]요일|20\d{2})/.test(message);
+  const title = titleFromMessage(message, location, preparations);
   const confidence = Number(Math.min(
-    0.92,
+    title === '일정 내용 확인' ? 0.55 : 0.92,
     0.42 + (hasDateSignal ? 0.18 : 0) + (dueTime ? 0.12 : 0) + (location ? 0.1 : 0) + (preparations.length ? 0.1 : 0),
   ).toFixed(2));
 
   return {
-    title: formatScheduleTitle(message, titleFromMessage(message, location, preparations), location),
+    analysisMethod: 'DEVICE_RULES',
+    title: formatScheduleTitle(message, title, location),
     details: detailsFromMessage(message),
     dueDate: dateFromMessage(message, new Date()),
     dueTime,

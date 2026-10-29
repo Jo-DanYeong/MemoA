@@ -1,8 +1,11 @@
-import {Linking, NativeModules, PermissionsAndroid, Platform} from 'react-native';
+import {Linking, NativeEventEmitter, NativeModules, PermissionsAndroid, Platform} from 'react-native';
 
 import {CapturedNotification} from '../domain';
 
 type NotificationCaptureModule = {
+  captureEventsSupported?: boolean;
+  addListener?(eventName: string): void;
+  removeListeners?(count: number): void;
   isAccessGranted(): Promise<boolean>;
   openAccessSettings(): Promise<void>;
   openApplicationSettings(): Promise<void>;
@@ -27,6 +30,18 @@ const nativeCapture = NativeModules.MemoaNotificationCapture as NotificationCapt
 
 export function notificationCaptureAvailable(): boolean {
   return Platform.OS === 'android' && Boolean(nativeCapture);
+}
+
+export function subscribeToCapturedNotifications(onChanged: () => void): {remove(): void} | null {
+  if (Platform.OS !== 'android' || !nativeCapture?.captureEventsSupported
+    || typeof nativeCapture.addListener !== 'function' || typeof nativeCapture.removeListeners !== 'function') {
+    return null;
+  }
+  const emitter = new NativeEventEmitter({
+    addListener: nativeCapture.addListener,
+    removeListeners: nativeCapture.removeListeners,
+  });
+  return emitter.addListener('MemoaNotificationCandidatesChanged', onChanged);
 }
 
 export async function getSharedTextFromUrl(url: string | null): Promise<string | null> {

@@ -30,16 +30,34 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class NotificationCaptureModule extends ReactContextBaseJavaModule {
+    private static final String CANDIDATES_CHANGED_EVENT = "MemoaNotificationCandidatesChanged";
     private static final String SETUP_STORE = "memoa_app_setup";
     private static final String BACKGROUND_SETUP_SHOWN_KEY = "background_setup_v1_shown";
     private final ReactApplicationContext context;
+    private final AtomicInteger candidateListenerCount = new AtomicInteger();
+    private SharedPreferences candidatePreferences;
+    private final SharedPreferences.OnSharedPreferenceChangeListener candidatePreferenceListener =
+        this::onCandidatePreferencesChanged;
+
+    private void onCandidatePreferencesChanged(SharedPreferences preferences, String key) {
+        if (NotificationCaptureService.STORE_KEY.equals(key)
+            && candidateListenerCount.get() > 0 && context.hasActiveReactInstance()) {
+            try {
+                context.emitDeviceEvent(CANDIDATES_CHANGED_EVENT);
+            } catch (IllegalStateException ignored) {
+                // React may be invalidated between the active-instance check and a reload.
+            }
+        }
+    }
 
     public NotificationCaptureModule(ReactApplicationContext context) {
         super(context);
@@ -49,6 +67,40 @@ public class NotificationCaptureModule extends ReactContextBaseJavaModule {
     @Override
     public @NotNull String getName() {
         return "MemoaNotificationCapture";
+    }
+
+    @Override
+    public Map<String, Object> getConstants() {
+        return Collections.singletonMap("captureEventsSupported", true);
+    }
+
+    @Override
+    public void initialize() {
+        super.initialize();
+        candidatePreferences = context.getSharedPreferences(NotificationCaptureService.STORE_NAME, 0);
+        candidatePreferences.registerOnSharedPreferenceChangeListener(candidatePreferenceListener);
+    }
+
+    @Override
+    public void invalidate() {
+        candidateListenerCount.set(0);
+        if (candidatePreferences != null) {
+            candidatePreferences.unregisterOnSharedPreferenceChangeListener(candidatePreferenceListener);
+            candidatePreferences = null;
+        }
+        super.invalidate();
+    }
+
+    @ReactMethod
+    public void addListener(String eventName) {
+        if (CANDIDATES_CHANGED_EVENT.equals(eventName)) {
+            candidateListenerCount.incrementAndGet();
+        }
+    }
+
+    @ReactMethod
+    public void removeListeners(double count) {
+        candidateListenerCount.updateAndGet(current -> Math.max(0, current - (int) count));
     }
 
     @ReactMethod

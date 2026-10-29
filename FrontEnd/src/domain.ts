@@ -10,6 +10,7 @@ export type UserSession = {
 };
 
 export type AnalysisResult = {
+  analysisMethod?: 'GROQ' | 'OPENAI' | 'GATEWAY' | 'SERVER_RULES' | 'DEVICE_RULES';
   title: string;
   details: string;
   dueDate: string;
@@ -29,6 +30,7 @@ export type Schedule = AnalysisResult & {
 };
 
 export type CapturedNotification = {
+  analysis?: AnalysisResult;
   id: string;
   packageName?: string;
   appName: string;

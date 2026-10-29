@@ -8,16 +8,26 @@ import java.util.regex.Pattern;
 final class ScheduleTitleFormatter {
     private static final Pattern PREFIX = Pattern.compile("^\\[([^]]+)]\\s*");
     private static final Pattern EXPLICIT_CONTEXT = Pattern.compile(
-        "(?:참석자|기관|발신자|대화방|알림\\s*출처)\\s*[:：]\\s*([^,.;\\n]+)"
+        "(?:참석자|기관)\\s*[:：]\\s*([^,.;\\n]+)"
     );
 
     private ScheduleTitleFormatter() {
     }
 
     static String format(String message, String title, String location) {
-        String safeTitle = title == null ? "" : title.trim();
+        String safeTitle = MessageContent.body(title).replaceFirst(
+            "\\s*(?:\\(|,)?\\s*(?:알림\\s*출처|발신자|대화방)\\s*[:：].*$", ""
+        );
+        for (String source : MessageContent.sources(message)) {
+            if (!MessageContent.body(message).contains(source)) {
+                safeTitle = safeTitle.replace(source, "");
+            }
+        }
+        safeTitle = safeTitle.replaceAll("[（(]\\s*[,·]?\\s*[)）]", "")
+            .replaceAll("\\(\\s*[,·]\\s*", "(")
+            .replaceAll("\\s*[,·]\\s*\\)", ")").trim();
         Matcher prefix = PREFIX.matcher(safeTitle);
-        String category = prefix.find() ? prefix.group(1).trim() : categoryFor(message);
+        String category = prefix.find() ? prefix.group(1).trim() : categoryFor(MessageContent.body(message));
         String core = PREFIX.matcher(safeTitle)
             .replaceFirst("")
             .replaceFirst("[.!?]+$", "")
@@ -27,7 +37,7 @@ final class ScheduleTitleFormatter {
         }
 
         List<String> contexts = new ArrayList<>();
-        Matcher explicitContext = EXPLICIT_CONTEXT.matcher(message == null ? "" : message);
+        Matcher explicitContext = EXPLICIT_CONTEXT.matcher(MessageContent.body(message));
         if (explicitContext.find()) {
             contexts.add(explicitContext.group(1).trim());
         }

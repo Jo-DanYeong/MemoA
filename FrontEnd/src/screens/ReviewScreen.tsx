@@ -24,6 +24,7 @@ type Props = {
 };
 
 type FieldProps = {
+  extractionLabel: string;
   label: string;
   value: string;
   onChangeText: (value: string) => void;
@@ -33,13 +34,13 @@ type FieldProps = {
   needsConfirmation?: boolean;
 };
 
-function Field({label, value, onChangeText, placeholder, multiline, maxLength, needsConfirmation}: FieldProps) {
+function Field({label, value, onChangeText, placeholder, multiline, maxLength, needsConfirmation, extractionLabel}: FieldProps) {
   return (
     <View style={styles.field}>
       <View style={styles.fieldHeader}>
         <View style={styles.labelRow}>
           <Text style={styles.fieldLabel}>{label}</Text>
-          <View style={styles.aiBadge}><Text style={styles.aiBadgeText}>AI 추출</Text></View>
+          <View style={styles.aiBadge}><Text style={styles.aiBadgeText}>{extractionLabel}</Text></View>
           {needsConfirmation ? <View style={styles.confirmBadge}><Text style={styles.confirmBadgeText}>확인 필요</Text></View> : null}
         </View>
         <Text style={styles.editIcon}>⌕</Text>
@@ -67,6 +68,14 @@ export function ReviewScreen({initial, originalMessage, usedLocalFallback, onBac
   const [preparations, setPreparations] = useState((initial.preparations ?? []).join(', '));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const usedAi = initial.analysisMethod === 'GROQ' || initial.analysisMethod === 'OPENAI' || initial.analysisMethod === 'GATEWAY';
+  const extractionLabel = initial.analysisMethod === 'GROQ' ? 'Groq 추출'
+    : initial.analysisMethod === 'OPENAI' ? 'OpenAI 추출' : usedAi ? 'AI 추출' : '기본 추출';
+  const fallbackMessage = usedLocalFallback || initial.analysisMethod === 'DEVICE_RULES'
+    ? '서버 연결 없이 기기의 기본 분석을 사용했어요. 아래 내용을 꼭 확인해 주세요.'
+    : initial.analysisMethod === 'SERVER_RULES'
+      ? 'AI 분석을 사용할 수 없어 서버의 기본 분석을 사용했어요. API 키·사용 한도·연결 상태를 확인해 주세요.'
+      : '분석 방식을 확인할 수 없어요. 서버를 업데이트한 뒤 다시 분석해 주세요.';
 
   const save = async () => {
     const normalizedTime = dueTime.trim();
@@ -107,17 +116,17 @@ export function ReviewScreen({initial, originalMessage, usedLocalFallback, onBac
           <Text numberOfLines={2} style={styles.originalText}>{originalMessage || '직접 입력한 메시지'}</Text>
         </View>
 
-        {usedLocalFallback ? (
-          <View style={styles.fallback}><Text style={styles.fallbackText}>서버 연결 없이 기본 분석을 사용했어요. 아래 내용을 꼭 확인해 주세요.</Text></View>
+        {!usedAi ? (
+          <View style={styles.fallback}><Text style={styles.fallbackText}>{fallbackMessage}</Text></View>
         ) : null}
 
         <View style={styles.formList}>
-          <Field label="일정 제목" maxLength={80} onChangeText={setTitle} value={title} />
-          <Field label="날짜" needsConfirmation={initial.needsReview} onChangeText={setDueDate} placeholder="YYYY-MM-DD" value={dueDate} />
-          <Field label="시간" maxLength={5} onChangeText={setDueTime} placeholder="HH:mm" value={dueTime} />
-          <Field label="장소" maxLength={180} onChangeText={setLocation} placeholder="장소 미정" value={location} />
-          <Field label="준비 사항" maxLength={1000} multiline onChangeText={setPreparations} placeholder="예: 발표 자료, 노트북" value={preparations} />
-          <Field label="상세 내용" maxLength={1000} multiline onChangeText={setDetails} placeholder="일정에 필요한 보충 설명" value={details} />
+          <Field extractionLabel={extractionLabel} label="일정 제목" maxLength={80} onChangeText={setTitle} value={title} />
+          <Field extractionLabel={extractionLabel} label="날짜" needsConfirmation={initial.needsReview} onChangeText={setDueDate} placeholder="YYYY-MM-DD" value={dueDate} />
+          <Field extractionLabel={extractionLabel} label="시간" maxLength={5} onChangeText={setDueTime} placeholder="HH:mm" value={dueTime} />
+          <Field extractionLabel={extractionLabel} label="장소" maxLength={180} onChangeText={setLocation} placeholder="장소 미정" value={location} />
+          <Field extractionLabel={extractionLabel} label="준비 사항" maxLength={1000} multiline onChangeText={setPreparations} placeholder="예: 발표 자료, 노트북" value={preparations} />
+          <Field extractionLabel={extractionLabel} label="상세 내용" maxLength={1000} multiline onChangeText={setDetails} placeholder="일정에 필요한 보충 설명" value={details} />
         </View>
 
         <View style={styles.reminderCard}>

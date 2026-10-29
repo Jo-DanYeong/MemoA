@@ -64,12 +64,14 @@ public class RuleBasedAnalyzer {
     private static final Map<String, DayOfWeek> WEEKDAYS = createWeekdays();
 
     public AnalysisResponse analyze(AnalysisRequest request) {
-        String message = request.message().trim();
+        String message = MessageContent.body(request.message());
         LocalDate referenceDate = request.referenceDate() == null ? LocalDate.now() : request.referenceDate();
         LocalTime time = parseTime(message);
         String location = parseLocation(message);
         List<String> preparations = parsePreparations(message);
         boolean hasDateSignal = DATE_SIGNAL.matcher(message).find();
+        String title = parseTitle(message, location, preparations);
+        boolean uncertainAction = "일정 내용 확인".equals(title);
         double confidence = Math.round(Math.min(
                 0.92,
                 0.42
@@ -78,9 +80,12 @@ public class RuleBasedAnalyzer {
                     + (location != null ? 0.10 : 0)
                     + (!preparations.isEmpty() ? 0.10 : 0)
             ) * 100.0) / 100.0;
+        if (uncertainAction) {
+            confidence = Math.min(confidence, 0.55);
+        }
 
         return new AnalysisResponse(
-            ScheduleTitleFormatter.format(message, parseTitle(message, location, preparations), location),
+            ScheduleTitleFormatter.format(request.message(), title, location),
             interpretDetails(message),
             parseDate(message, referenceDate),
             time,
@@ -88,7 +93,8 @@ public class RuleBasedAnalyzer {
             preparations,
             request.sourceType() == null ? SourceType.DIRECT : request.sourceType(),
             confidence,
-            confidence < 0.82
+            confidence < 0.82,
+            AnalysisMethod.SERVER_RULES
         );
     }
 
@@ -304,11 +310,8 @@ public class RuleBasedAnalyzer {
         }
 
         cleaned = cleaned.replaceFirst("(?:방문해서\\s*)?(?:가|오)기\\s*$", "").trim();
-        String firstSentence = cleaned.split("[.!?\\n]")[0].trim();
-        if (firstSentence.isBlank()) {
-            return "새로운 일정";
-        }
-        return compactTitle(firstSentence);
+        // An unrecognized conversation is not a summary. Let the user review it in details.
+        return "일정 내용 확인";
     }
 
     private String compactTitle(String title) {

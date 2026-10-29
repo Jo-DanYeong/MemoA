@@ -96,12 +96,22 @@ describe('local message analyzer', () => {
     expect(result.title).toBe('[회의] 마케팅 전략 수립 회의 참석 (팀 전원, 회의실)');
   });
 
-  test('uses a notification sender as title context instead of copying it into the action', () => {
+  test('excludes notification source metadata from the title and details', () => {
     const result = analyzeLocally(
       '내일 오후 2시 프로젝트 회의\n알림 출처: 홍길동',
       'ANDROID_NOTIFICATION',
     );
 
-    expect(result.title).toBe('[회의] 프로젝트 회의 참석 (홍길동)');
+    expect(result.title).toBe('[회의] 프로젝트 회의 참석');
+    expect(result.details).not.toContain('홍길동');
+    expect(result.analysisMethod).toBe('DEVICE_RULES');
+  });
+
+  test('does not copy unrecognized conversation into a schedule title', () => {
+    const message = '내일 그때 얘기했던 거 잊지 말고 잘 해주면 좋겠어';
+    const result = analyzeLocally(message, 'ANDROID_NOTIFICATION');
+    expect(result.title).toBe('[일정] 일정 내용 확인');
+    expect(result.title).not.toContain('얘기했던');
+    expect(result.needsReview).toBe(true);
   });
 });

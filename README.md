@@ -8,7 +8,9 @@ MemoA는 카카오톡, 문자, 이메일 등에 포함된 과제·약속·마감
 
 - 메시지 직접 입력 및 `memoa://capture?text=...` 딥링크 수신
 - 메시지 의미를 제목·설명, 날짜·시간, 장소와 준비 사항으로 해석
-- 원격 AI 분석 실패 시 한국어 규칙 기반 분석기로 자동 전환
+- 백엔드에서 Groq API로 문장을 해석하고, 원격 분석 실패 시 한국어 규칙 기반 분석기로 전환
+- 제목은 `[말머리] 핵심 행동`으로 요약하며, 알림 앱·발신자·대화방은 제목에서 제외
+- 분석 결과 화면에 Groq 추출과 기본 추출을 구분해서 표시
 - 분석 결과 확인·수정 후 일정 저장
 - 일정 목록, 월간 캘린더, 날짜별 일정 확인
 - 저장한 일정을 Android의 `MemoA` 기기 캘린더에 자동 등록
@@ -30,6 +32,10 @@ MemoA는 카카오톡, 문자, 이메일 등에 포함된 과제·약속·마감
 - 카카오톡·문자·Instagram DM 등에서 일정 표현이 포함된 알림 후보 수집
 - 일반 본문, 대화형 메시지, 여러 줄 묶음 알림을 읽으며 최신 메시지를 기준으로 일정 후보 판단
 - 후보는 최대 20개까지 단말에 임시 저장하고, 홈에서 직접 선택해 확인한 뒤 일정 저장 또는 삭제 시 제거
+- 앱의 홈이 활성화되면 수집된 후보 본문을 서버로 보내 분석하고 요약 제목을 표시 (같은 실행 중 동일 후보 중복 호출 방지)
+- 새 알림·후보 삭제·감지 앱 선택 변경은 네이티브 이벤트로 홈에 즉시 반영하며, AI 응답 대기 중에도 새 후보 수를 갱신
+- AI 요청은 순서대로 처리하고, 삭제된 후보의 늦은 응답은 홈에 다시 추가하지 않음
+- 백그라운드 네이티브 감지는 키워드 검사로 후보를 보관하며, Groq 분석은 앱 홈에서 진행
 - 로그인·앱 복귀 시 입력 화면이나 권한 설정을 자동으로 열지 않으며, 권한은 설정 탭에서 직접 허용
 - 재설치 이전에 게시된 알림은 제외하고, 날씨·뉴스·배터리 상태 앱은 기본 감지 대상에서 제외 (설정에서 변경 가능)
 - 캘린더 읽기·쓰기 권한 확인 및 설정 화면에서 연동 상태 표시
@@ -133,10 +139,17 @@ EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8080/api/v1
 | --- | --- | --- |
 | `PORT` | `8080` | 내장 Tomcat 포트 |
 | `MEMOA_DATA_PATH` | `./data/memoa` | H2 데이터 파일 경로 |
-| `MEMOA_AI_ENDPOINT` | 빈 값 | 외부 AI 분석 API 주소 |
-| `MEMOA_AI_API_KEY` | 빈 값 | 외부 AI Bearer 토큰 |
+| `MEMOA_AI_PROVIDER` | `groq` | `groq`, `openai` 또는 기존 외부 서버용 `gateway` |
+| `GROQ_API_KEY` | 빈 값 | 백엔드 전용 Groq API 키 |
+| `GROQ_MODEL` | `openai/gpt-oss-120b` | Groq에서 실행할 구조화 출력 지원 모델 |
+| `OPENAI_API_KEY` | 빈 값 | 백엔드 전용 OpenAI API 키 |
+| `OPENAI_MODEL` | `gpt-5-mini` | OpenAI 분석 모델 |
+| `MEMOA_AI_ENDPOINT` | 빈 값 | `gateway` 모드의 외부 분석 API 주소 |
+| `MEMOA_AI_API_KEY` | 빈 값 | `gateway` 모드의 Bearer 토큰 |
 
-`MEMOA_AI_ENDPOINT`가 없거나 호출에 실패하면 서버의 한국어 규칙 기반 분석기가 사용됩니다.
+선택한 제공자의 키가 없거나 호출에 실패하면 서버의 한국어 규칙 기반 분석기가 사용됩니다.
+이 경우 응답의 `analysisMethod`는 `SERVER_RULES`이며 화면에도 기본 분석이라고 표시합니다.
+Groq 실패 시 OpenAI를 자동 호출하지 않습니다. 기존 OpenAI 키가 남아 있어도 `groq` 모드에서는 사용하지 않습니다.
 
 ## 백엔드 실행
 
@@ -451,11 +464,36 @@ release APK 실행에는 Expo Go와 Metro가 필요하지 않지만, 로그인·
 
 ## AI 분석 API 연동
 
-외부 AI 게이트웨이는 `message`, `sourceType`, `referenceDate`, `language`, `instruction`, `responseSchema`를 받습니다. 메시지 전체의 의미를 해석하여 다음 형태의 JSON을 반환해야 하며, 시간은 `HH:mm` 형식만 사용합니다.
+[Groq Console](https://console.groq.com/keys)에서 무료 플랜으로 API 키를 발급합니다.
+MemoA 루트에서 `.env.example`을 `.env`로 복사하고 발급한 키를 직접 입력합니다.
+실제 키는 Git에 올리거나 프론트엔드의 `EXPO_PUBLIC_*` 변수에 넣지 않습니다.
+
+```dotenv
+MEMOA_AI_PROVIDER=groq
+GROQ_API_KEY=여기에_본인의_Groq_API_키
+GROQ_MODEL=openai/gpt-oss-120b
+```
+
+Spring Boot는 루트 또는 `BackEnd`에서 실행할 때 해당 `.env` 설정을 읽습니다.
+IntelliJ의 `Backend - Spring Boot`는 `BackEnd`를 작업 폴더로 사용하므로 상위 루트의 `.env`도 읽습니다.
+변경 후 백엔드를 재시작합니다. Docker Compose도 루트 `.env`의 변수를 컨테이너에 전달하므로
+`docker compose up -d --build`로 반영합니다. `.env` 자체는 Docker 이미지에 복사하지 않습니다.
+
+백엔드는 [Groq Structured Outputs](https://console.groq.com/docs/structured-outputs)의 strict JSON Schema를
+사용해 제목·설명·날짜·시간·장소·준비 사항을 JSON으로 받습니다.
+알림 발신자·대화방 출처 라벨은 메시지 본문에서 제거합니다.
+원문을 길게 복사한 제목이나 미완료·거절·오류 응답은 AI 성공으로 처리하지 않습니다.
+키와 원문은 서버 로그에 기록하지 않습니다.
+
+Groq 무료 플랜에는 요청·토큰 사용량 제한이 있습니다. `HTTP 429`가 나오면
+[Groq 계정의 사용 한도](https://console.groq.com/settings/limits)를 확인하고 제한이 풀린 뒤 다시 분석합니다.
+자동으로 유료 플랜으로 전환하거나 다른 유료 API로 우회하지 않습니다.
+
+분석 API 응답 예시입니다. 시간은 `HH:mm` 형식입니다.
 
 ```json
 {
-  "title": "과학 수행평가 보고서 제출",
+  "title": "[과제] 과학 수행평가 보고서 제출 (과학실)",
   "details": "과학실에서 실험 노트와 USB를 챙겨 보고서 최종본을 제출합니다.",
   "dueDate": "2026-09-12",
   "dueTime": "15:00",
@@ -463,9 +501,17 @@ release APK 실행에는 Expo Go와 Metro가 필요하지 않지만, 로그인·
   "preparations": ["실험 노트", "USB"],
   "sourceType": "SHARE",
   "confidence": 0.94,
-  "needsReview": false
+  "needsReview": false,
+  "analysisMethod": "GROQ"
 }
 ```
+
+`analysisMethod`는 `GROQ`, `OPENAI`, `GATEWAY`, `SERVER_RULES` 중 하나이며,
+단말의 오프라인 기본 분석은 `DEVICE_RULES`를 사용합니다.
+OpenAI를 명시적으로 선택하려면 `MEMOA_AI_PROVIDER=openai`, `OPENAI_API_KEY`, `OPENAI_MODEL`을 설정합니다.
+기존 별도 분석 서버를 사용할 때만 `MEMOA_AI_PROVIDER=gateway`와 `MEMOA_AI_ENDPOINT`를 설정합니다.
+이 서버는 `message`, `sourceType`, `referenceDate`, `language`, `instruction`, `responseSchema`를 받고
+위와 같은 일정 필드를 반환하는 기존 방식입니다.
 
 ## 문제 해결
 

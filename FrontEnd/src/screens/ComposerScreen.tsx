@@ -57,7 +57,7 @@ export function ComposerScreen({initialMessage = '', initialSource = 'DIRECT', o
       <View style={[styles.loadingPage, {paddingTop: Math.max(insets.top, 20)}]}>
         <View style={styles.loadingOrb}><ActivityIndicator color={colors.white} size="large" /></View>
         <Text style={styles.loadingTitle}>해야 할 일과 일정 정보를 찾고 있어요</Text>
-        <Text style={styles.loadingBody}>AI가 메시지 속 중요한 날짜와 장소를 정리 중입니다.</Text>
+        <Text style={styles.loadingBody}>메시지 속 핵심 행동과 날짜·장소를 정리하고 있습니다.</Text>
         <View style={styles.loadingSteps}>
           <Text style={styles.loadingDone}>✓  메시지 읽는 중…</Text>
           <Text style={styles.loadingActive}>●  일정 추출 중…</Text>

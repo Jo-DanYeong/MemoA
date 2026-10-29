@@ -146,13 +146,25 @@ class RuleBasedAnalyzerTest {
     }
 
     @Test
-    void usesNotificationSenderAsTitleContext() {
+    void excludesNotificationSourceFromTitleAndDetails() {
         AnalysisResponse result = analyzer.analyze(new AnalysisRequest(
             "내일 오후 2시 프로젝트 회의\n알림 출처: 홍길동",
             SourceType.ANDROID_NOTIFICATION,
             LocalDate.of(2026, 9, 20)
         ));
 
-        assertThat(result.title()).isEqualTo("[회의] 프로젝트 회의 참석 (홍길동)");
+        assertThat(result.title()).isEqualTo("[회의] 프로젝트 회의 참석");
+        assertThat(result.details()).doesNotContain("홍길동");
+        assertThat(result.analysisMethod()).isEqualTo(AnalysisMethod.SERVER_RULES);
+    }
+
+    @Test
+    void doesNotCopyUnrecognizedConversationIntoTitle() {
+        AnalysisResponse result = analyzer.analyze(new AnalysisRequest(
+            "내일 그때 얘기했던 거 잊지 말고 잘 해주면 좋겠어", SourceType.ANDROID_NOTIFICATION,
+            LocalDate.of(2026, 10, 29)
+        ));
+        assertThat(result.title()).isEqualTo("[일정] 일정 내용 확인");
+        assertThat(result.needsReview()).isTrue();
     }
 }

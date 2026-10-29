@@ -19,6 +19,11 @@ services:
       MEMOA_DATA_PATH: /data/memoa
       MEMOA_AI_ENDPOINT: ${MEMOA_AI_ENDPOINT:-}
       MEMOA_AI_API_KEY: ${MEMOA_AI_API_KEY:-}
+      MEMOA_AI_PROVIDER: ${MEMOA_AI_PROVIDER:-groq}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5-mini}
       JAVA_OPTS: -XX:MaxRAMPercentage=75.0 -Dfile.encoding=UTF-8
     volumes:
       - memoa-data:/data

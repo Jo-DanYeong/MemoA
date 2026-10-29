@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {AppState, Linking, StyleSheet, Text, View} from 'react-native';
 
 import {BottomNav, MainTab} from './components/BottomNav';
@@ -8,6 +8,7 @@ import {
   getInitialSharedText,
   getSharedTextFromUrl,
   removeCapturedNotification,
+  subscribeToCapturedNotifications,
 } from './native/capture';
 import {CalendarScreen} from './screens/CalendarScreen';
 import {ComposerScreen} from './screens/ComposerScreen';
@@ -19,21 +20,8 @@ import {SettingsScreen} from './screens/SettingsScreen';
 import {analyzeMessage, createSchedule, fetchSchedules, login, signUp, updateSchedule} from './services/api';
 import {syncScheduleToDeviceCalendar} from './services/deviceCalendar';
 import {analyzeLocally} from './services/localAnalyzer';
+import {messageFromNotification} from './services/messageContent';
 import {colors} from './theme';
-
-function messageFromNotification(candidate: CapturedNotification): string {
-  const sourceTitle = candidate.title.trim();
-  const body = candidate.text.trim();
-  if (!sourceTitle || body.includes(sourceTitle)) {
-    return body;
-  }
-
-  const combined = `${sourceTitle} ${body}`.replace(/\s+/g, ' ').trim();
-  if (/(?:충전|완충|\d{1,3}\s*%)/.test(combined)) {
-    return combined;
-  }
-  return `${body}\n알림 출처: ${sourceTitle}`;
-}
 
 export function MemoaApp() {
   const [session, setSession] = useState<UserSession | null>(null);
@@ -46,6 +34,12 @@ export function MemoaApp() {
   const [toast, setToast] = useState('');
   const [notificationCandidates, setNotificationCandidates] = useState<CapturedNotification[]>([]);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
+  const candidateAnalyses = useRef(new Map<string, {
+    message: string;
+    result?: AnalysisResult;
+    pending: Promise<AnalysisResult | null>;
+  }>());
+  const candidateAnalysisQueue = useRef<Promise<void>>(Promise.resolve());
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -80,16 +74,83 @@ export function MemoaApp() {
       return;
     }
     let cancelled = false;
+    let checking = false;
+    let refreshRequested = false;
+    const watchedAnalyses = new WeakSet<object>();
     const checkNotifications = async () => {
+      refreshRequested = true;
+      if (checking) {
+        return;
+      }
+      checking = true;
       try {
-        const pending = await getCapturedNotifications();
-        if (!cancelled) {
-          setNotificationCandidates(pending);
-        }
+        do {
+          refreshRequested = false;
+          const pending = await getCapturedNotifications();
+          if (cancelled) {
+            return;
+          }
+          const pendingIds = new Set(pending.map(candidate => candidate.id));
+          for (const id of candidateAnalyses.current.keys()) {
+            if (!pendingIds.has(id)) {
+              candidateAnalyses.current.delete(id);
+            }
+          }
+          setNotificationCandidates(pending.map(candidate => {
+            const cached = candidateAnalyses.current.get(candidate.id);
+            return cached?.result && cached.message === messageFromNotification(candidate)
+              ? {...candidate, analysis: cached.result} : candidate;
+          }));
+          // Refresh the queue immediately. AI requests stay serial without blocking subsequent reads.
+          for (const candidate of pending) {
+            const message = messageFromNotification(candidate);
+            let cached = candidateAnalyses.current.get(candidate.id);
+            if (cached?.message !== message) {
+              const entry = {message, pending: Promise.resolve<AnalysisResult | null>(null), result: undefined as AnalysisResult | undefined};
+              entry.pending = candidateAnalysisQueue.current.then(() => {
+                // Deleted, changed, or logged-out candidates must not start another API request.
+                if (candidateAnalyses.current.get(candidate.id) !== entry) {
+                  return null;
+                }
+                return message.length < 3
+                  ? analyzeLocally(message, 'ANDROID_NOTIFICATION')
+                  : analyzeMessage(message, 'ANDROID_NOTIFICATION')
+                    .catch(() => analyzeLocally(message, 'ANDROID_NOTIFICATION'));
+              });
+              candidateAnalysisQueue.current = entry.pending.then(() => undefined, () => undefined);
+              candidateAnalyses.current.set(candidate.id, entry);
+              cached = entry;
+            }
+            if (cached.result || watchedAnalyses.has(cached)) {
+              continue;
+            }
+            watchedAnalyses.add(cached);
+            const entry = cached;
+            entry.pending.then(result => {
+              if (!result || candidateAnalyses.current.get(candidate.id) !== entry) {
+                return;
+              }
+              entry.result = result;
+              if (!cancelled) {
+                setNotificationCandidates(current => current.map(item => item.id === candidate.id
+                  && item.text === candidate.text && item.analysis !== result ? {...item, analysis: result} : item));
+              }
+            }).catch(() => {
+              // A failed analysis must not interrupt native queue updates.
+            });
+          }
+        } while (refreshRequested && !cancelled);
       } catch {
         // A temporary listener error must not interrupt the home screen.
+      } finally {
+        checking = false;
       }
     };
+    const captureSubscription = subscribeToCapturedNotifications(() => {
+      if (AppState.currentState !== 'background' && AppState.currentState !== 'inactive') {
+        checkNotifications();
+      }
+    });
     checkNotifications();
     const subscription = AppState.addEventListener('change', state => {
       if (state === 'active') {
@@ -100,11 +161,12 @@ export function MemoaApp() {
       if (AppState.currentState === 'active') {
         checkNotifications();
       }
-    }, 15000);
+    }, captureSubscription ? 15000 : 3000);
     return () => {
       cancelled = true;
       clearInterval(refreshTimer);
       subscription.remove();
+      captureSubscription?.remove();
     };
   }, [session, tab]);
 
@@ -137,11 +199,16 @@ export function MemoaApp() {
   const openNotification = (candidate: CapturedNotification) => {
     openCapturedMessage(messageFromNotification(candidate), 'ANDROID_NOTIFICATION');
     setSelectedCandidateId(candidate.id);
+    if (candidate.analysis) {
+      setUsedLocalFallback(candidate.analysis.analysisMethod === 'DEVICE_RULES');
+      setAnalysis(candidate.analysis);
+    }
   };
 
   const dismissNotification = async (candidate: CapturedNotification) => {
     try {
       await removeCapturedNotification(candidate.id);
+      candidateAnalyses.current.delete(candidate.id);
       setNotificationCandidates(current => current.filter(item => item.id !== candidate.id));
     } catch {
       showToast('일정 후보를 삭제하지 못했어요. 다시 시도해 주세요.');
@@ -159,6 +226,7 @@ export function MemoaApp() {
     setSession(null);
     setSchedules([]);
     setNotificationCandidates([]);
+    candidateAnalyses.current.clear();
     setSelectedCandidateId(null);
     setAnalysis(null);
     setCaptureMessage('');
@@ -186,6 +254,7 @@ export function MemoaApp() {
     setSchedules(current => [saved, ...current]);
     if (selectedCandidateId) {
       await removeCapturedNotification(selectedCandidateId).catch(() => undefined);
+      candidateAnalyses.current.delete(selectedCandidateId);
       setNotificationCandidates(current => current.filter(item => item.id !== selectedCandidateId));
       setSelectedCandidateId(null);
     }

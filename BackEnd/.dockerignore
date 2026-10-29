@@ -4,4 +4,6 @@ build
 data
 *.iml
 *.log
+.env
+.env.*
 README.md

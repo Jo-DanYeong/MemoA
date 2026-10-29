@@ -16,6 +16,7 @@ public record AnalysisResponse(
     List<String> preparations,
     SourceType sourceType,
     double confidence,
-    boolean needsReview
+    boolean needsReview,
+    AnalysisMethod analysisMethod
 ) {
 }

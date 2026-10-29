@@ -57,8 +57,10 @@ export function HomeScreen({session, schedules, onCompose, onCalendar, onToggle,
             {showCandidates ? notificationCandidates.map(candidate => (
               <View key={candidate.id} style={styles.candidateRow}>
                 <Pressable accessibilityLabel={`${candidate.appName} 일정 후보 열기`} onPress={() => onOpenNotification(candidate)} style={styles.candidateCopy}>
-                  <Text style={styles.candidateApp}>{candidate.appName}</Text>
-                  {candidate.title ? <Text numberOfLines={1} style={styles.candidateTitle}>{candidate.title}</Text> : null}
+                  <Text style={styles.candidateApp}>{candidate.appName} · {candidate.analysis
+                    ? (candidate.analysis.analysisMethod === 'GROQ' || candidate.analysis.analysisMethod === 'OPENAI' || candidate.analysis.analysisMethod === 'GATEWAY' ? 'AI 분석' : '기본 분석')
+                    : '분석 중'}</Text>
+                  <Text numberOfLines={1} style={styles.candidateTitle}>{candidate.analysis?.title ?? '일정 내용을 분석하고 있어요'}</Text>
                   <Text numberOfLines={2} style={styles.candidateBody}>{candidate.text}</Text>
                 </Pressable>
                 <Pressable accessibilityLabel={`${candidate.appName} 일정 후보 삭제`} onPress={() => onDismissNotification(candidate)} style={styles.dismissButton}>

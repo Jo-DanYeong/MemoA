@@ -1,6 +1,7 @@
 package app.memoa.analysis;
 
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -8,14 +9,24 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import app.memoa.schedule.SourceType;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 @Component
 public class RemoteAiAnalyzer {
+    private static final Logger log = LoggerFactory.getLogger(RemoteAiAnalyzer.class);
+    private static final String OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
+    private static final String GROQ_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions";
     private static final String CHARGE_DURATION = "(?:(?:\\d+\\s*시간\\s*)?(?:\\d+\\s*분))";
     private static final Pattern CHARGE_TARGET = Pattern.compile(
         "(\\d{1,3})\\s*%\\s*(?:충전\\s*)?까지\\s*(" + CHARGE_DURATION + ")"
@@ -37,9 +48,9 @@ public class RemoteAiAnalyzer {
         - dueTime: HH:mm 또는 null
         - location: string 또는 null
         - preparations: string 배열
-        - sourceType: 입력으로 받은 sourceType
         - confidence: 0.0~1.0
         - needsReview: boolean
+        sourceType은 입력 참고값이며 JSON 출력에 포함하지 않습니다.
 
         [분석 순서]
         1. 메시지에서 사용자가 실제로 해야 하는 핵심 행동 하나를 선택합니다.
@@ -48,10 +59,12 @@ public class RemoteAiAnalyzer {
         4. 추출한 필드끼리 내용이 섞이거나 중복되지 않았는지 검토합니다.
 
         [title]
-        - 반드시 '[말머리] 핵심 내용 (참석자/기관/장소)' 구조로 작성하세요.
+        - '[말머리] 핵심 행동' 구조로 작성하고, 본문에 실제 참석자·기관·장소가 명시된 경우에만 마지막 괄호에 덧붙이세요.
         - 말머리는 메시지 의미에 맞춰 회의, 미팅, 보고, 발표, 계약, 협의, 개인업무, 약속, 병원, 운동, 여행, 출장, 전시, 공연, 충전 등 짧고 검색하기 쉬운 분류를 선택하세요.
-        - 원문 전체를 복사하지 말고 핵심 대상과 행동을 간결하게 작성하세요.
-        - 날짜, 시간, 준비 항목은 핵심 내용에 넣지 마세요. 참석자·기관·장소·발신자·대화방은 원문에 명시된 경우에만 마지막 괄호 안에 넣으세요.
+        - 핵심 행동은 8~25자 정도의 짧은 명사구로 요약하세요. 긴 문장을 앞에서 자르거나 원문 그대로 복사하지 마세요.
+        - '해주세요/하기로 했어/할 수 있을까요/가자/보자' 같은 대화 표현을 '제출/참석/예약/확인' 같은 실행할 행동으로 바꾸세요.
+        - 날짜, 시간, 준비 항목은 핵심 내용에 넣지 마세요.
+        - 알림 출처, 앱 이름, 발신자, 대화방 이름은 제목과 괄호에 절대 넣지 마세요. 알림 발신자를 실제 참석자로 추측하지 마세요.
         - 핵심 내용이나 괄호에 같은 정보를 반복하지 마세요.
         - 제출·신청·예약 문장은 '대상 + 제출/신청/예약' 형태로 작성하세요.
         - 설명회·회의·상담·면접 등에 간다는 문장은 '행사명 + 참석' 형태로 작성하세요.
@@ -93,12 +106,16 @@ public class RemoteAiAnalyzer {
 
         [예시 1]
         message: <날짜> <시간>에 <시설명>에서 <기업명> 채용설명회 <준비물> 지참해서 가기
-        결과: title='<기업명> 채용설명회 참석', location='<시설명>', preparations=['<준비물>']
+        결과: title='[설명회] <기업명> 채용설명회 참석 (<시설명>)', location='<시설명>', preparations=['<준비물>']
         <기업명>과 채용설명회는 행사 정보이므로 preparations에 포함하지 않습니다.
 
         [예시 2]
         message: 금요일 오후 3시까지 과학실으로 수행평가 보고서를 제출하러가고, 실험 노트와 USB를 챙겨 와
-        결과: title='과학 수행평가 보고서 제출', dueTime='15:00', location='과학실', preparations=['실험 노트', 'USB']
+        결과: title='[과제] 과학 수행평가 보고서 제출 (과학실)', dueTime='15:00', location='과학실', preparations=['실험 노트', 'USB']
+
+        [예시 3]
+        message: 내일 오후 2시에 프로젝트 진행 상황을 같이 얘기하면 좋겠어. 회의실에서 보자. 발표 자료도 챙겨 와.
+        결과: title='[회의] 프로젝트 진행 상황 회의 (회의실)', dueTime='14:00', location='회의실', preparations=['발표 자료']
 
         최종
          반환 전에 title이 원문 전체가 아닌지, preparations에 행사명·장소·핵심 행동이 섞이지 않았는지 다시 확인하세요.
@@ -107,39 +124,59 @@ public class RemoteAiAnalyzer {
     private final RestClient restClient;
     private final String endpoint;
     private final String apiKey;
+    private final String provider;
+    private final String openAiApiKey;
+    private final String model;
+    private final String groqApiKey;
+    private final String groqModel;
+    private final ObjectMapper objectMapper;
 
     public RemoteAiAnalyzer(
-        RestClient.Builder restClientBuilder,
+        @Qualifier("analysisRestClient") RestClient restClient,
+        ObjectMapper objectMapper,
         @Value("${memoa.ai.endpoint:}") String endpoint,
-        @Value("${memoa.ai.api-key:}") String apiKey
+        @Value("${memoa.ai.api-key:}") String apiKey,
+        @Value("${memoa.ai.provider:groq}") String provider,
+        @Value("${memoa.ai.openai-api-key:}") String openAiApiKey,
+        @Value("${memoa.ai.model:gpt-5-mini}") String model,
+        @Value("${memoa.ai.groq-api-key:}") String groqApiKey,
+        @Value("${memoa.ai.groq-model:openai/gpt-oss-120b}") String groqModel
     ) {
-        this.restClient = restClientBuilder.build();
+        this.restClient = restClient;
+        this.objectMapper = objectMapper;
         this.endpoint = endpoint == null ? "" : endpoint.trim();
         this.apiKey = apiKey == null ? "" : apiKey.trim();
+        this.provider = provider;
+        this.openAiApiKey = openAiApiKey == null ? "" : openAiApiKey.trim();
+        this.model = model;
+        this.groqApiKey = groqApiKey == null ? "" : groqApiKey.trim();
+        this.groqModel = groqModel;
     }
 
     public Optional<AnalysisResponse> analyze(AnalysisRequest request) {
-        if (endpoint.isBlank()) {
+        boolean openAi = "openai".equalsIgnoreCase(provider);
+        boolean groq = "groq".equalsIgnoreCase(provider);
+        boolean gateway = "gateway".equalsIgnoreCase(provider);
+        if ((!openAi && !groq && !gateway) || (groq && groqApiKey.isBlank())
+            || (openAi && openAiApiKey.isBlank()) || (gateway && endpoint.isBlank())) {
             return Optional.empty();
         }
         try {
             RestClient.RequestBodySpec call = restClient.post()
-                .uri(endpoint)
+                .uri(groq ? GROQ_COMPLETIONS_URL : openAi ? OPENAI_RESPONSES_URL : endpoint)
                 .header(HttpHeaders.CONTENT_TYPE, "application/json");
-            if (!apiKey.isBlank()) {
-                call.header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey);
+            String bearer = groq ? groqApiKey : openAi ? openAiApiKey : apiKey;
+            if (!bearer.isBlank()) {
+                call.header(HttpHeaders.AUTHORIZATION, "Bearer " + bearer);
             }
-            AnalysisResponse result = call
-                .body(Map.of(
-                    "message", request.message(),
-                    "sourceType", request.sourceType() == null ? "DIRECT" : request.sourceType().name(),
-                    "referenceDate", request.referenceDate() == null ? LocalDate.now().toString() : request.referenceDate().toString(),
-                    "language", "ko-KR",
-                    "instruction", ANALYSIS_INSTRUCTION,
-                    "responseSchema", "memoa-analysis-v7"
-                ))
-                .retrieve()
-                .body(AnalysisResponse.class);
+            AnalysisResponse result;
+            if (groq) {
+                result = readGroqResponse(call.body(groqPayload(request)).retrieve().body(JsonNode.class));
+            } else if (openAi) {
+                result = readOpenAiResponse(call.body(openAiPayload(request)).retrieve().body(JsonNode.class));
+            } else {
+                result = call.body(gatewayPayload(request)).retrieve().body(AnalysisResponse.class);
+            }
             if (
                 result == null
                     || result.title() == null
@@ -150,9 +187,15 @@ public class RemoteAiAnalyzer {
             ) {
                 return Optional.empty();
             }
-            double confidence = Math.max(0, Math.min(1, result.confidence()));
-            String chargingTitle = chargingTitle(request.message());
+            String message = MessageContent.body(request.message());
+            double confidence = Double.isFinite(result.confidence())
+                ? Math.max(0, Math.min(1, result.confidence())) : 0;
+            String chargingTitle = chargingTitle(message);
             boolean chargingEstimate = chargingTitle != null;
+            if (!chargingEstimate && isCopiedTitle(message, result.title())) {
+                log.warn("AI schedule title was not a summary; using basic analysis");
+                return Optional.empty();
+            }
             String formattedTitle = ScheduleTitleFormatter.format(
                 request.message(),
                 chargingEstimate ? chargingTitle : result.title(),
@@ -173,15 +216,142 @@ public class RemoteAiAnalyzer {
                 chargingEstimate ? null : result.dueTime(),
                 blankToNull(result.location(), 180),
                 preparations,
-                result.sourceType() == null
-                    ? (request.sourceType() == null ? SourceType.DIRECT : request.sourceType())
-                    : result.sourceType(),
+                request.sourceType() == null ? SourceType.DIRECT : request.sourceType(),
                 chargingEstimate ? Math.min(confidence, 0.55) : confidence,
-                chargingEstimate || result.needsReview() || confidence < 0.82
+                chargingEstimate || result.needsReview() || confidence < 0.82,
+                groq ? AnalysisMethod.GROQ : openAi ? AnalysisMethod.OPENAI : AnalysisMethod.GATEWAY
             ));
-        } catch (RestClientException exception) {
+        } catch (RestClientResponseException exception) {
+            log.warn("AI provider returned HTTP {} ({}); using basic analysis",
+                exception.getStatusCode().value(), providerErrorCode(exception));
+            return Optional.empty();
+        } catch (RestClientException | JsonProcessingException exception) {
+            // Never log message text, API keys, or provider response bodies.
+            log.warn("AI analysis unavailable ({}); using basic analysis", exception.getClass().getSimpleName());
             return Optional.empty();
         }
+    }
+
+    private String providerErrorCode(RestClientResponseException exception) {
+        try {
+            JsonNode body = objectMapper.readTree(exception.getResponseBodyAsString());
+            String code = body == null ? "unknown" : body.path("error").path("code").asText();
+            return code.matches("[a-z_]{1,64}") ? code : "unknown";
+        } catch (JsonProcessingException ignored) {
+            return "unknown";
+        }
+    }
+
+    private Map<String, Object> input(AnalysisRequest request) {
+        return Map.of(
+            "message", MessageContent.body(request.message()),
+            "sourceType", request.sourceType() == null ? "DIRECT" : request.sourceType().name(),
+            "referenceDate", request.referenceDate() == null ? LocalDate.now().toString() : request.referenceDate().toString()
+        );
+    }
+
+    private Map<String, Object> gatewayPayload(AnalysisRequest request) {
+        Map<String, Object> payload = new LinkedHashMap<>(input(request));
+        payload.put("language", "ko-KR");
+        payload.put("instruction", ANALYSIS_INSTRUCTION);
+        payload.put("responseSchema", "memoa-analysis-v8");
+        return payload;
+    }
+
+    private Map<String, Object> scheduleSchema() {
+        Map<String, Object> properties = Map.of(
+            "title", Map.of("type", "string", "description", "[말머리] 핵심 행동. 핵심 행동은 8~25자 정도로 요약하고 알림 출처를 제외"),
+            "details", Map.of("type", "string"),
+            "dueDate", Map.of("type", "string", "description", "YYYY-MM-DD"),
+            "dueTime", Map.of("type", List.of("string", "null"), "description", "24시간제 HH:mm. 시간이 없으면 null"),
+            "location", Map.of("type", List.of("string", "null")),
+            "preparations", Map.of("type", "array", "items", Map.of("type", "string")),
+            "confidence", Map.of("type", "number", "description", "0.0~1.0. 해석이 모호하면 낮은 값"),
+            "needsReview", Map.of("type", "boolean")
+        );
+        return Map.of("type", "object", "properties", properties,
+            "required", List.of("title", "details", "dueDate", "dueTime", "location", "preparations", "confidence", "needsReview"),
+            "additionalProperties", false);
+    }
+
+    private Map<String, Object> groqPayload(AnalysisRequest request) throws JsonProcessingException {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("model", groqModel);
+        payload.put("messages", List.of(
+            Map.of("role", "system", "content", ANALYSIS_INSTRUCTION),
+            Map.of("role", "user", "content", objectMapper.writeValueAsString(input(request)))
+        ));
+        payload.put("max_completion_tokens", 1800);
+        payload.put("stream", false);
+        if (groqModel.startsWith("openai/gpt-oss-")) {
+            payload.put("reasoning_effort", "low");
+        }
+        payload.put("response_format", Map.of("type", "json_schema", "json_schema", Map.of(
+            "name", "memoa_schedule", "strict", true, "schema", scheduleSchema()
+        )));
+        return payload;
+    }
+
+    private AnalysisResponse readGroqResponse(JsonNode response) throws JsonProcessingException {
+        if (response == null) {
+            return null;
+        }
+        JsonNode choice = response.path("choices").path(0);
+        JsonNode message = choice.path("message");
+        if (!"stop".equals(choice.path("finish_reason").asText())
+            || !message.path("refusal").asText("").isBlank()) {
+            return null;
+        }
+        JsonNode content = message.path("content");
+        return content.isTextual() && !content.asText().isBlank()
+            ? objectMapper.readValue(content.asText(), AnalysisResponse.class) : null;
+    }
+
+    private Map<String, Object> openAiPayload(AnalysisRequest request) throws JsonProcessingException {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("model", model);
+        payload.put("instructions", ANALYSIS_INSTRUCTION);
+        payload.put("input", objectMapper.writeValueAsString(input(request)));
+        payload.put("store", false);
+        payload.put("max_output_tokens", 1800);
+        if (model.startsWith("gpt-5")) {
+            payload.put("reasoning", Map.of("effort", "low"));
+        }
+        payload.put("text", Map.of("format", Map.of(
+            "type", "json_schema", "name", "memoa_schedule", "strict", true,
+            "schema", scheduleSchema()
+        )));
+        return payload;
+    }
+
+    private AnalysisResponse readOpenAiResponse(JsonNode response) throws JsonProcessingException {
+        if (response == null || !"completed".equals(response.path("status").asText())) {
+            return null;
+        }
+        StringBuilder output = new StringBuilder();
+        for (JsonNode item : response.path("output")) {
+            if (!"message".equals(item.path("type").asText())) {
+                continue;
+            }
+            for (JsonNode content : item.path("content")) {
+                if ("refusal".equals(content.path("type").asText())) {
+                    return null;
+                }
+                if ("output_text".equals(content.path("type").asText())) {
+                    output.append(content.path("text").asText());
+                }
+            }
+        }
+        return output.isEmpty() ? null : objectMapper.readValue(output.toString(), AnalysisResponse.class);
+    }
+
+    private boolean isCopiedTitle(String message, String title) {
+        String core = MessageContent.body(title).replaceFirst("^\\[[^]]+]\\s*", "")
+            .replaceFirst("\\s*\\([^)]*\\)\\s*$", "").trim();
+        String normalizedMessage = message.replaceAll("[\\s.!?]", "");
+        String normalizedTitle = core.replaceAll("[\\s.!?…]", "");
+        return core.length() > 40 || core.contains("\n")
+            || (normalizedTitle.length() > 25 && normalizedMessage.startsWith(normalizedTitle));
     }
 
     private static String truncate(String value, int maxLength) {
