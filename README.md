@@ -58,6 +58,10 @@ iOS 27에서는 [알림 단축어 연동](FrontEnd/docs/ios-notification-shortcu
 iPhone에는 단축어 자동화·로컬 네트워크 접근을 표시합니다. 감지 알림은 각 OS의 실제 허용 상태를 확인하며,
 이미 허용되었거나 차단된 권한은 해당 OS의 앱 설정에서 변경합니다.
 
+iPhone 서버 주소는 `http://100.72.90.63:8080/api/v1`이며 휴대폰에서도 같은 Tailscale 네트워크에 연결해야 합니다.
+`FrontEnd/.env`의 `EXPO_PUBLIC_IOS_API_BASE_URL`로 iPhone 주소를 별도로 지정합니다.
+Android 개발 앱은 기존 `EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8080/api/v1`과 USB reverse 연결을 사용합니다.
+
 ## 기술 구성
 
 | 영역 | 기술 |

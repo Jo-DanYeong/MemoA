@@ -22,6 +22,7 @@ import {
   deviceCalendarPermissionGranted,
   requestDeviceCalendarPermission,
 } from '../services/deviceCalendar';
+import {API_BASE_URL} from '../services/api';
 import {colors} from '../theme';
 
 type Props = {
@@ -195,6 +196,10 @@ export function SettingsScreen({session, onLogout}: Props) {
         </View>
 
         <View style={styles.group}>
+          <SettingRow title="서버 주소" subtitle={API_BASE_URL} value="연결 정보" />
+          {isIos && API_BASE_URL?.includes('://100.72.90.63:') ? (
+            <SettingRow title="Tailscale 연결" subtitle="휴대폰과 PC를 같은 Tailscale 네트워크에 연결해 주세요" value="VPN 사용" />
+          ) : null}
           <SettingRow
             onPress={isIos || canOpenAccess ? () => openSystemSettings(openApplicationPermissionSettings) : undefined}
             subtitle={isIos ? 'iPhone 시스템 설정에서 MemoA 권한을 변경합니다'
@@ -242,7 +247,7 @@ export function SettingsScreen({session, onLogout}: Props) {
             <SettingRow
               onPress={() => openSystemSettings(openApplicationPermissionSettings)}
               title="로컬 네트워크 접근"
-              subtitle="같은 Wi-Fi의 PC 서버에 연결하려면 MemoA의 접근을 허용해 주세요"
+              subtitle="Wi-Fi의 로컬 서버를 이용할 때 네트워크 접근 권한을 관리합니다"
               value="시스템 설정"
             /></>
           ) : null}

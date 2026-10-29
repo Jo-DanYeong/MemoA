@@ -5,11 +5,13 @@ import {AnalysisResult, Schedule, SourceType, UserSession} from '../domain';
 
 const fallbackApiUrl = Platform.select({
   android: 'http://10.0.2.2:8080/api/v1',
-  ios: 'http://localhost:8080/api/v1',
+  ios: 'http://100.72.90.63:8080/api/v1',
   default: 'http://localhost:8080/api/v1',
 });
-const configuredApiUrl = Constants.expoConfig?.extra?.apiBaseUrl;
-const API_BASE_URL = typeof configuredApiUrl === 'string' && configuredApiUrl.length > 0
+const configuredApiUrl = Platform.OS === 'ios'
+  ? Constants.expoConfig?.extra?.iosApiBaseUrl ?? Constants.expoConfig?.extra?.apiBaseUrl
+  : Constants.expoConfig?.extra?.apiBaseUrl;
+export const API_BASE_URL = typeof configuredApiUrl === 'string' && configuredApiUrl.length > 0
   ? configuredApiUrl.replace(/\/$/, '')
   : fallbackApiUrl;
 

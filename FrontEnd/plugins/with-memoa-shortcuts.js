@@ -4,7 +4,7 @@ const {IOSConfig, withInfoPlist, withXcodeProject} = require('expo/config-plugin
 
 module.exports = function withMemoaShortcuts(config) {
   config = withInfoPlist(config, next => {
-    next.modResults.MemoaApiBaseUrl = next.extra?.apiBaseUrl || '';
+    next.modResults.MemoaApiBaseUrl = next.extra?.iosApiBaseUrl || next.extra?.apiBaseUrl || '';
     return next;
   });
   return withXcodeProject(config, next => {

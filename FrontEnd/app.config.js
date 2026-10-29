@@ -1,7 +1,10 @@
 const {URL} = require('node:url');
 
 const iosSideload = process.env.MEMOA_IOS_SIDELOAD === '1';
-const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || '';
+const defaultApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || '';
+const iosApiBaseUrl = process.env.EXPO_PUBLIC_IOS_API_BASE_URL
+  || (iosSideload ? defaultApiBaseUrl : 'http://100.72.90.63:8080/api/v1');
+const apiBaseUrl = iosSideload ? iosApiBaseUrl : defaultApiBaseUrl;
 
 if (iosSideload) {
   let apiUrl;
@@ -30,6 +33,7 @@ module.exports = {
     plugins: ['expo-calendar', './plugins/with-memoa-shortcuts'],
     extra: {
       apiBaseUrl,
+      iosApiBaseUrl,
     },
     android: {
       package: 'com.frontend',
@@ -43,7 +47,7 @@ module.exports = {
       supportsTablet: true,
       ...(iosSideload ? {
         infoPlist: {
-          NSLocalNetworkUsageDescription: '같은 Wi-Fi의 MemoA 개발 서버에 연결해 로그인과 일정 분석을 테스트합니다.',
+          NSLocalNetworkUsageDescription: 'Wi-Fi 또는 Tailscale의 MemoA 개발 서버에 연결해 로그인과 일정 분석을 테스트합니다.',
         },
       } : {}),
     },

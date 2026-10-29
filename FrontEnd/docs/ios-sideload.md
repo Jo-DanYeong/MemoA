@@ -52,13 +52,14 @@ IPA는 앱의 JavaScript까지 포함하므로 **Metro와 Expo Go가 필요 없�
 
 ## 3. 백엔드와 연결해서 테스트
 
-1. PC와 iPhone을 같은 Wi-Fi에 연결합니다.
+1. PC와 iPhone에서 Tailscale을 켜고 같은 Tailscale 네트워크에 연결합니다.
 2. IntelliJ에서 `Backend - Spring Boot`를 실행합니다.
-3. iPhone Safari에서 `http://<PC의 Wi-Fi IP>:8080/api/v1/health`를 열어 서버 연결을 확인합니다.
+3. iPhone Safari에서 `http://100.72.90.63:8080/api/v1/health`를 열어 서버 연결을 확인합니다.
 4. MemoA를 열고 로그인 또는 체험 모드로 메시지 입력·분석·일정 저장을 확인합니다.
 
-서버 연결이 안 되면 PC의 방화벽과 공유기의 기기 간 통신 제한을 확인합니다.
-Wi-Fi IP가 바뀌면 새 주소로 IPA를 다시 빌드해야 합니다.
+서버 연결이 안 되면 Tailscale 연결 상태와 접근 정책, PC의 방화벽을 확인합니다.
+현재 빌드의 API 주소는 `http://100.72.90.63:8080/api/v1`입니다.
+API 주소가 바뀌면 새 주소로 IPA를 다시 빌드해야 합니다.
 서버 없이도 체험 모드에서 단말 분석과 앱 내부 일정 화면을 확인할 수 있습니다.
 
 ## 테스트 범위
