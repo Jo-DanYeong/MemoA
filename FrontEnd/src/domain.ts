@@ -31,6 +31,8 @@ export type Schedule = AnalysisResult & {
 
 export type CapturedNotification = {
   analysis?: AnalysisResult;
+  analysisPending?: boolean;
+  sourceType?: SourceType;
   id: string;
   packageName?: string;
   appName: string;

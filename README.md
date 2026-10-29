@@ -50,6 +50,10 @@ Windows와 무료 Apple 계정으로 실기기 테스트를 준비하는 방법�
 GitHub Actions에서 서명 없는 Release IPA를 만들고 Sideloadly로 직접 서명·설치합니다.
 현재 Android 전용 기능과 iPhone에서 확인할 수 있는 기능은 안내 문서에 구분했습니다.
 
+iOS 27에서는 [알림 단축어 연동](FrontEnd/docs/ios-notification-shortcuts.md)을 설정하면
+선택한 앱의 새 알림을 기기에 임시저장하고 AI로 분석할 수 있습니다.
+연동 동작이 포함된 새 IPA가 필요하며, 실제 알림 본문 전달·잠금 상태 실행은 iPhone에서 확인해야 합니다.
+
 ## 기술 구성
 
 | 영역 | 기술 |

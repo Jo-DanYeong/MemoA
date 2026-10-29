@@ -67,6 +67,12 @@ jobs:
         # This only regenerates ios/ in the disposable runner checkout, not the local Android project.
         run: npx expo prebuild --platform ios --clean --no-install
 
+      - name: Verify persistent shortcut candidate storage
+        run: |
+          mkdir -p build/ios
+          swiftc -swift-version 5 native/ios/ShortcutStore.swift scripts/test-ios-shortcut-store.swift -o build/ios/test-shortcut-store
+          build/ios/test-shortcut-store
+
       - name: Install iOS native dependencies
         working-directory: FrontEnd/ios
         run: pod install --repo-update

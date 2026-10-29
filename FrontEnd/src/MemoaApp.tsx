@@ -98,13 +98,24 @@ export function MemoaApp() {
           }
           setNotificationCandidates(pending.map(candidate => {
             const cached = candidateAnalyses.current.get(candidate.id);
-            return cached?.result && cached.message === messageFromNotification(candidate)
+            return !candidate.analysis && cached?.result && cached.message === messageFromNotification(candidate)
               ? {...candidate, analysis: cached.result} : candidate;
           }));
           // Refresh the queue immediately. AI requests stay serial without blocking subsequent reads.
           for (const candidate of pending) {
             const message = messageFromNotification(candidate);
+            const source = candidate.sourceType ?? 'ANDROID_NOTIFICATION';
             let cached = candidateAnalyses.current.get(candidate.id);
+            if (candidate.analysis) {
+              candidateAnalyses.current.set(candidate.id, {
+                message, result: candidate.analysis, pending: Promise.resolve(candidate.analysis),
+              });
+              continue;
+            }
+            // The iPhone shortcut is already analyzing this item in the background.
+            if (candidate.analysisPending) {
+              continue;
+            }
             if (cached?.message !== message) {
               const entry = {message, pending: Promise.resolve<AnalysisResult | null>(null), result: undefined as AnalysisResult | undefined};
               entry.pending = candidateAnalysisQueue.current.then(() => {
@@ -113,9 +124,9 @@ export function MemoaApp() {
                   return null;
                 }
                 return message.length < 3
-                  ? analyzeLocally(message, 'ANDROID_NOTIFICATION')
-                  : analyzeMessage(message, 'ANDROID_NOTIFICATION')
-                    .catch(() => analyzeLocally(message, 'ANDROID_NOTIFICATION'));
+                  ? analyzeLocally(message, source)
+                  : analyzeMessage(message, source)
+                    .catch(() => analyzeLocally(message, source));
               });
               candidateAnalysisQueue.current = entry.pending.then(() => undefined, () => undefined);
               candidateAnalyses.current.set(candidate.id, entry);
@@ -197,7 +208,7 @@ export function MemoaApp() {
   };
 
   const openNotification = (candidate: CapturedNotification) => {
-    openCapturedMessage(messageFromNotification(candidate), 'ANDROID_NOTIFICATION');
+    openCapturedMessage(messageFromNotification(candidate), candidate.sourceType ?? 'ANDROID_NOTIFICATION');
     setSelectedCandidateId(candidate.id);
     if (candidate.analysis) {
       setUsedLocalFallback(candidate.analysis.analysisMethod === 'DEVICE_RULES');

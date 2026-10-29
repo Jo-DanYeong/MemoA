@@ -27,19 +27,32 @@ export type NotificationSourceApp = {
 };
 
 const nativeCapture = NativeModules.MemoaNotificationCapture as NotificationCaptureModule | undefined;
+const iosCapture = NativeModules.MemoaShortcutCapture as {
+  addListener?(eventName: string): void;
+  removeListeners?(count: number): void;
+  getPending(): Promise<CapturedNotification[]>;
+  removePending(id: string): Promise<void>;
+  alertPermission(): Promise<boolean>;
+  requestAlertPermission(): Promise<boolean>;
+} | undefined;
+
+export function iosShortcutCaptureAvailable(): boolean {
+  return Platform.OS === 'ios' && typeof iosCapture?.getPending === 'function';
+}
 
 export function notificationCaptureAvailable(): boolean {
   return Platform.OS === 'android' && Boolean(nativeCapture);
 }
 
 export function subscribeToCapturedNotifications(onChanged: () => void): {remove(): void} | null {
-  if (Platform.OS !== 'android' || !nativeCapture?.captureEventsSupported
-    || typeof nativeCapture.addListener !== 'function' || typeof nativeCapture.removeListeners !== 'function') {
+  const module = Platform.OS === 'ios' ? iosCapture
+    : Platform.OS === 'android' && nativeCapture?.captureEventsSupported ? nativeCapture : undefined;
+  if (typeof module?.addListener !== 'function' || typeof module.removeListeners !== 'function') {
     return null;
   }
   const emitter = new NativeEventEmitter({
-    addListener: nativeCapture.addListener,
-    removeListeners: nativeCapture.removeListeners,
+    addListener: module.addListener,
+    removeListeners: module.removeListeners,
   });
   return emitter.addListener('MemoaNotificationCandidatesChanged', onChanged);
 }
@@ -98,6 +111,9 @@ export async function requestInitialBackgroundAccess(): Promise<boolean> {
 }
 
 export async function detectionAlertPermissionGranted(): Promise<boolean> {
+  if (Platform.OS === 'ios') {
+    return typeof iosCapture?.alertPermission === 'function' ? iosCapture.alertPermission() : false;
+  }
   if (Platform.OS !== 'android' || Number(Platform.Version) < 33) {
     return true;
   }
@@ -105,6 +121,9 @@ export async function detectionAlertPermissionGranted(): Promise<boolean> {
 }
 
 export async function requestDetectionAlertPermission(): Promise<boolean> {
+  if (Platform.OS === 'ios') {
+    return typeof iosCapture?.requestAlertPermission === 'function' ? iosCapture.requestAlertPermission() : false;
+  }
   if (Platform.OS !== 'android' || Number(Platform.Version) < 33) {
     return true;
   }
@@ -140,6 +159,9 @@ export async function drainCapturedNotifications(): Promise<CapturedNotification
 }
 
 export async function getCapturedNotifications(): Promise<CapturedNotification[]> {
+  if (iosShortcutCaptureAvailable()) {
+    return iosCapture!.getPending();
+  }
   if (Platform.OS !== 'android' || typeof nativeCapture?.getPending !== 'function') {
     return [];
   }
@@ -147,6 +169,10 @@ export async function getCapturedNotifications(): Promise<CapturedNotification[]
 }
 
 export async function removeCapturedNotification(id: string): Promise<void> {
+  if (Platform.OS === 'ios' && typeof iosCapture?.removePending === 'function') {
+    await iosCapture.removePending(id);
+    return;
+  }
   if (Platform.OS === 'android' && typeof nativeCapture?.removePending === 'function') {
     await nativeCapture.removePending(id);
   }

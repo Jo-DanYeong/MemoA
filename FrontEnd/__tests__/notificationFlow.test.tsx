@@ -154,6 +154,27 @@ test('새 알림 이벤트는 타이머를 기다리지 않고 홈의 후보 수
   expect(analyzeMessage).toHaveBeenCalledTimes(2);
 });
 
+test('단축어가 분석한 iPhone 후보는 재요청 없이 열고 삭제할 수 있다', async () => {
+  const analysis = {...analyzedCandidate, sourceType: 'SHARE' as const};
+  jest.mocked(capture.getCapturedNotifications).mockResolvedValue([{...candidate, sourceType: 'SHARE', analysis, analysisPending: false}]);
+  await enterGuest();
+  expect(analyzeMessage).not.toHaveBeenCalled();
+  expect(renderer.root.findByType(HomeScreen).props.notificationCandidates[0].analysis).toEqual(analysis);
+  await act(async () => renderer.root.findByProps({accessibilityLabel: '알림에서 찾은 일정 후보 확인'}).props.onPress());
+  await act(async () => renderer.root.findByProps({accessibilityLabel: '메신저 일정 후보 열기'}).props.onPress());
+  expect(renderer.root.findByType(ReviewScreen).props.initial.sourceType).toBe('SHARE');
+});
+
+test('단축어 분석 중에는 중복 요청하지 않고 중단된 분석은 홈에서 다시 처리한다', async () => {
+  jest.mocked(capture.getCapturedNotifications).mockResolvedValue([{...candidate, sourceType: 'SHARE', analysisPending: true}]);
+  await enterGuest();
+  expect(renderer.root.findByType(HomeScreen).props.notificationCandidates).toHaveLength(1);
+  expect(analyzeMessage).not.toHaveBeenCalled();
+  jest.mocked(capture.getCapturedNotifications).mockResolvedValue([{...candidate, sourceType: 'SHARE', analysisPending: false}]);
+  await act(async () => onCandidatesChanged());
+  expect(analyzeMessage).toHaveBeenCalledWith(candidate.text, 'SHARE');
+});
+
 test('AI 응답 대기 중에도 새 후보를 즉시 보여주며 분석 요청은 순서대로 보낸다', async () => {
   let finishFirst!: (result: AnalysisResult) => void;
   jest.mocked(analyzeMessage).mockImplementationOnce(() => new Promise(resolve => { finishFirst = resolve; }));

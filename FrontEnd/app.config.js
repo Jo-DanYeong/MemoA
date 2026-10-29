@@ -27,7 +27,7 @@ module.exports = {
     userInterfaceStyle: 'light',
     scheme: 'memoa',
     platforms: ['android', 'ios'],
-    plugins: ['expo-calendar'],
+    plugins: ['expo-calendar', './plugins/with-memoa-shortcuts'],
     extra: {
       apiBaseUrl,
     },

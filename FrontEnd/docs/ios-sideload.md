@@ -64,7 +64,8 @@ Wi-Fi IP가 바뀌면 새 주소로 IPA를 다시 빌드해야 합니다.
 ## 테스트 범위
 
 - 직접 입력, 메시지 분석과 수정, 앱 내부 일정 목록 및 캘린더: 테스트 대상
-- 다른 앱 알림 자동 수집: 현재 Android 전용
+- Android 알림 자동 수집: Android 알림 접근 권한 사용
+- iOS 27 알림 자동화: [단축어 연동 안내](ios-notification-shortcuts.md)에 따라 사용자가 앱과 입력 변수를 설정
 - iPhone 시스템 공유 확장 및 Apple Calendar 연동: 현재 미구현
 
 이 IPA는 개인 테스트용이며, App Store/TestFlight 배포용 파일이 아닙니다.
