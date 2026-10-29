@@ -211,7 +211,9 @@ export function SettingsScreen({session, onLogout}: Props) {
             switchOn={alertPermission}
             title="감지 알림"
           />
-          <SettingRow disabled subtitle="분석 후 원본 메시지를 기기에 저장합니다" switchOn={false} title="원본 메시지 저장" />
+          {Platform.OS === 'ios'
+            ? <SettingRow subtitle="후보를 저장하거나 삭제하면 수신 메시지를 기기에서 지웁니다" title="임시저장 데이터" value="기기에 보관" />
+            : <SettingRow disabled subtitle="분석 후 원본 메시지를 기기에 저장합니다" switchOn={false} title="원본 메시지 저장" />}
           {selectionError ? <Text style={styles.selectionError}>{selectionError}</Text> : null}
           <SettingRow title="앱 정보" value="v1.0.0" />
           <Pressable onPress={onLogout} style={({pressed}) => [styles.logout, pressed && styles.pressed]}>
