@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {AppState, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
+import {AppState, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {UserSession} from '../domain';
@@ -40,7 +40,7 @@ type RowProps = {
 
 function SettingRow({title, subtitle, value, onPress, switchOn, disabled}: RowProps) {
   return (
-    <Pressable disabled={!onPress} onPress={onPress} style={({pressed}) => [styles.row, pressed && styles.pressed]}>
+    <Pressable accessibilityLabel={title} accessibilityRole={onPress ? 'button' : undefined} disabled={disabled || !onPress} onPress={onPress} style={({pressed}) => [styles.row, pressed && styles.pressed]}>
       <View style={styles.rowCopy}>
         <Text style={[styles.rowTitle, disabled && styles.disabledText]}>{title}</Text>
         {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
@@ -66,15 +66,18 @@ export function SettingsScreen({session, onLogout}: Props) {
   const [appQuery, setAppQuery] = useState('');
   const [selectionError, setSelectionError] = useState('');
   const [shortcutGuideOpen, setShortcutGuideOpen] = useState(false);
-  const hasNativeCapture = notificationCaptureAvailable();
-  const hasShortcuts = iosShortcutCaptureAvailable();
+  const isAndroid = Platform.OS === 'android';
+  const isIos = Platform.OS === 'ios';
+  const hasNativeCapture = isAndroid && notificationCaptureAvailable();
+  const hasShortcuts = isIos && iosShortcutCaptureAvailable();
+  const supportsNotificationAutomation = isIos && Number.parseInt(String(Platform.Version), 10) >= 27;
 
   const refreshCaptureSettings = useCallback(async () => {
     const [nextAccess, nextAlertPermission, nextBackgroundAllowed, nextCalendarAllowed] = await Promise.all([
-      notificationAccessGranted(),
+      hasNativeCapture ? notificationAccessGranted() : Promise.resolve(false),
       hasNativeCapture || hasShortcuts ? detectionAlertPermissionGranted() : Promise.resolve(false),
       hasNativeCapture ? backgroundExecutionAllowed() : Promise.resolve(false),
-      deviceCalendarPermissionGranted(),
+      isAndroid ? deviceCalendarPermissionGranted() : Promise.resolve(false),
     ]);
     setAccess(nextAccess);
     setAlertPermission(nextAlertPermission);
@@ -88,7 +91,7 @@ export function SettingsScreen({session, onLogout}: Props) {
       setSourceApps(apps);
       setSelectedPackages(selected);
     }
-  }, [hasNativeCapture, hasShortcuts]);
+  }, [hasNativeCapture, hasShortcuts, isAndroid]);
 
   useEffect(() => {
     refreshCaptureSettings().catch(() => setSelectionError('권한 상태를 확인하지 못했어요. 다시 시도해 주세요.'));
@@ -100,7 +103,7 @@ export function SettingsScreen({session, onLogout}: Props) {
     return () => subscription.remove();
   }, [refreshCaptureSettings]);
 
-  const canOpenAccess = Platform.OS === 'android' && hasNativeCapture;
+  const canOpenAccess = isAndroid && hasNativeCapture;
   const selectedNames = sourceApps
     .filter(app => selectedPackages.includes(app.packageName))
     .map(app => app.appName);
@@ -132,22 +135,56 @@ export function SettingsScreen({session, onLogout}: Props) {
     await saveSourceSelection(next);
   };
 
+  const openSystemSettings = async (open: () => Promise<void>) => {
+    setSelectionError('');
+    try {
+      await open();
+    } catch {
+      setSelectionError('시스템 설정을 열지 못했어요. 휴대폰 설정 앱에서 MemoA를 찾아 주세요.');
+    }
+  };
+
   const enableDetectionAlerts = async () => {
     try {
-      setAlertPermission(await requestDetectionAlertPermission());
+      if (alertPermission) {
+        await openApplicationPermissionSettings();
+        return;
+      }
+      const granted = await requestDetectionAlertPermission();
+      setAlertPermission(granted);
+      if (!granted) {
+        await openApplicationPermissionSettings();
+      }
     } catch {
       setSelectionError('알림 권한을 요청하지 못했어요. 앱 권한 설정에서 확인해 주세요.');
     }
   };
 
   const enableDeviceCalendar = async () => {
-    setCalendarAllowed(await requestDeviceCalendarPermission());
+    try {
+      if (calendarAllowed) {
+        await openApplicationPermissionSettings();
+      } else {
+        setCalendarAllowed(await requestDeviceCalendarPermission());
+      }
+    } catch {
+      setSelectionError('캘린더 권한을 변경하지 못했어요. 앱 권한 설정에서 확인해 주세요.');
+    }
+  };
+
+  const openShortcuts = async () => {
+    try {
+      await Linking.openURL('shortcuts://');
+    } catch {
+      setShortcutGuideOpen(false);
+      setSelectionError('단축어 앱을 열지 못했어요. iPhone에서 단축어 앱 설치 여부를 확인해 주세요.');
+    }
   };
 
   return (
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={[styles.page, {paddingTop: Math.max(insets.top, 16)}]} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>설정</Text>
+        <Text style={styles.title}>{isIos ? 'iPhone 설정' : isAndroid ? 'Android 설정' : '설정'}</Text>
 
         <View style={styles.profile}>
           <View style={styles.avatar}><Text style={styles.avatarText}>{session.displayName.slice(0, 2).toUpperCase()}</Text></View>
@@ -159,13 +196,13 @@ export function SettingsScreen({session, onLogout}: Props) {
 
         <View style={styles.group}>
           <SettingRow
-            onPress={Platform.OS === 'ios' || canOpenAccess ? openApplicationPermissionSettings : undefined}
-            subtitle={Platform.OS === 'ios' ? '알림 표시와 로컬 네트워크 접근 권한을 관리합니다'
+            onPress={isIos || canOpenAccess ? () => openSystemSettings(openApplicationPermissionSettings) : undefined}
+            subtitle={isIos ? 'iPhone 시스템 설정에서 MemoA 권한을 변경합니다'
               : canOpenAccess ? '알림 표시 등 Android 시스템 권한을 관리합니다' : '개발 빌드에서 사용할 수 있어요'}
             title="앱 권한 설정"
           />
-          {Platform.OS === 'android' ? <><SettingRow
-            onPress={Platform.OS === 'android' && !calendarAllowed ? enableDeviceCalendar : undefined}
+          {isAndroid ? <><SettingRow
+            onPress={enableDeviceCalendar}
             subtitle={calendarAllowed
               ? '새 일정을 MemoA 캘린더에도 자동으로 저장합니다'
               : '권한을 허용하면 휴대폰 캘린더에 일정을 함께 저장합니다'}
@@ -173,13 +210,13 @@ export function SettingsScreen({session, onLogout}: Props) {
             title="기기 캘린더 연동"
           />
           <SettingRow
-            onPress={canOpenAccess ? openNotificationAccessSettings : undefined}
+            onPress={canOpenAccess ? () => openSystemSettings(openNotificationAccessSettings) : undefined}
             subtitle={canOpenAccess ? (access ? '활성화됨' : '권한을 허용하면 일정 후보를 자동으로 찾아요') : '개발 빌드에서 사용할 수 있어요'}
             switchOn={access}
             title="Android 알림 접근 권한"
           />
           <SettingRow
-            onPress={canOpenAccess ? openBackgroundExecutionSettings : undefined}
+            onPress={canOpenAccess ? () => openSystemSettings(openBackgroundExecutionSettings) : undefined}
             subtitle={backgroundAllowed
               ? '배터리 제한 없이 백그라운드 자동 감지를 유지합니다'
               : '자동 감지가 필요할 때 눌러서 허용할 수 있어요'}
@@ -192,26 +229,32 @@ export function SettingsScreen({session, onLogout}: Props) {
             title="알림을 읽을 앱"
             value={selectedNames.length ? `${selectedNames.length}개` : '선택 필요'}
           />
-          <SettingRow subtitle="일정 알림 시간을 설정합니다" title="일정 알림" />
           </> : null}
-          {Platform.OS === 'ios' ? (
-            <SettingRow
+          {isIos ? (
+            <><SettingRow
               onPress={() => setShortcutGuideOpen(true)}
               title="iPhone 알림 자동화"
-              subtitle={hasShortcuts ? 'iOS 27 단축어에서 앱을 선택하면 일정 후보를 임시저장합니다'
-                : '연동 기능이 포함된 새 IPA를 설치한 뒤 설정해 주세요'}
+              subtitle={!supportsNotificationAutomation ? '알림 자동화는 iOS 27 이상에서 사용할 수 있어요'
+                : hasShortcuts ? '읽을 앱을 단축어에서 선택하고 일정 후보를 임시저장합니다'
+                  : '연동 기능이 포함된 버전으로 앱을 업데이트해 주세요'}
               value="설정 방법"
             />
+            <SettingRow
+              onPress={() => openSystemSettings(openApplicationPermissionSettings)}
+              title="로컬 네트워크 접근"
+              subtitle="같은 Wi-Fi의 PC 서버에 연결하려면 MemoA의 접근을 허용해 주세요"
+              value="시스템 설정"
+            /></>
           ) : null}
           <SettingRow
-            onPress={(hasNativeCapture || hasShortcuts) && !alertPermission ? enableDetectionAlerts : undefined}
+            onPress={hasNativeCapture || hasShortcuts ? enableDetectionAlerts : undefined}
             subtitle={alertPermission
-              ? '일정 후보를 임시 저장하면 소리와 진동으로 알려드려요'
-              : '소리와 진동 알림을 받으려면 권한을 허용해 주세요'}
+              ? '후보 저장 알림이 허용되어 있어요. 눌러서 시스템 설정에서 변경합니다'
+              : '새 후보가 저장되었을 때 알림을 받도록 허용합니다'}
             switchOn={alertPermission}
             title="감지 알림"
           />
-          {Platform.OS === 'ios'
+          {isIos
             ? <SettingRow subtitle="후보를 저장하거나 삭제하면 수신 메시지를 기기에서 지웁니다" title="임시저장 데이터" value="기기에 보관" />
             : <SettingRow disabled subtitle="분석 후 원본 메시지를 기기에 저장합니다" switchOn={false} title="원본 메시지 저장" />}
           {selectionError ? <Text style={styles.selectionError}>{selectionError}</Text> : null}
@@ -222,7 +265,7 @@ export function SettingsScreen({session, onLogout}: Props) {
         </View>
       </ScrollView>
 
-      <Modal animationType="slide" onRequestClose={() => setShortcutGuideOpen(false)} visible={shortcutGuideOpen}>
+      {isIos ? <Modal animationType="slide" onRequestClose={() => setShortcutGuideOpen(false)} visible={shortcutGuideOpen}>
         <ScrollView contentContainerStyle={[styles.pickerPage, styles.shortcutGuide, {paddingTop: Math.max(insets.top, 16), paddingBottom: Math.max(insets.bottom, 16)}]}>
           <Text style={styles.pickerTitle}>iPhone 알림 자동화</Text>
           <Text style={styles.guideText}>iOS 27 이상에서 단축어를 한 번 설정해 주세요. 등록 이후에 수신한 알림만 처리하며 과거 알림은 가져오지 않습니다.</Text>
@@ -233,11 +276,12 @@ export function SettingsScreen({session, onLogout}: Props) {
           <Text style={styles.guideText}>5. 자동화를 켜고 실행 전 확인을 끕니다. 잠금 중 실행이 필요하면 단축어의 정보 → 개인정보 보호에서 허용합니다.</Text>
           <Text style={styles.guideText}>서버가 연결되면 백그라운드에서 분석합니다. 연결이 끊겨도 메시지는 남아 있고, MemoA 홈을 열면 다시 분석합니다. 임시저장 알림은 설정의 감지 알림에서 허용할 수 있어요.</Text>
           <Text style={styles.guideText}>알림 본문이 숨겨져 있거나 단축어가 내용을 전달하지 못하면 분석할 수 없습니다. 먼저 알림 내용 변수를 미리보기로 확인해 주세요.</Text>
+          {hasShortcuts && supportsNotificationAutomation ? <Pressable accessibilityLabel="단축어 앱 열기" onPress={openShortcuts} style={styles.doneButton}><Text style={styles.doneText}>단축어 앱 열기</Text></Pressable> : null}
           <Pressable accessibilityLabel="단축어 설정 안내 닫기" onPress={() => setShortcutGuideOpen(false)} style={styles.doneButton}><Text style={styles.doneText}>확인</Text></Pressable>
         </ScrollView>
-      </Modal>
+      </Modal> : null}
 
-      <Modal animationType="slide" onRequestClose={() => setPickerOpen(false)} visible={pickerOpen}>
+      {isAndroid ? <Modal animationType="slide" onRequestClose={() => setPickerOpen(false)} visible={pickerOpen}>
         <View style={[styles.pickerPage, {paddingTop: Math.max(insets.top, 16), paddingBottom: Math.max(insets.bottom, 12)}]}>
           <View style={styles.pickerHeader}>
             <View>
@@ -285,7 +329,7 @@ export function SettingsScreen({session, onLogout}: Props) {
             }) : <Text style={styles.emptyApps}>표시할 앱이 없습니다.</Text>}
           </ScrollView>
         </View>
-      </Modal>
+      </Modal> : null}
     </View>
   );
 }

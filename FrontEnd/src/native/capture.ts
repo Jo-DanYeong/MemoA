@@ -7,6 +7,7 @@ type NotificationCaptureModule = {
   addListener?(eventName: string): void;
   removeListeners?(count: number): void;
   isAccessGranted(): Promise<boolean>;
+  isDetectionAlertPermissionGranted?(): Promise<boolean>;
   openAccessSettings(): Promise<void>;
   openApplicationSettings(): Promise<void>;
   isBackgroundExecutionAllowed(): Promise<boolean>;
@@ -113,6 +114,9 @@ export async function requestInitialBackgroundAccess(): Promise<boolean> {
 export async function detectionAlertPermissionGranted(): Promise<boolean> {
   if (Platform.OS === 'ios') {
     return typeof iosCapture?.alertPermission === 'function' ? iosCapture.alertPermission() : false;
+  }
+  if (Platform.OS === 'android' && typeof nativeCapture?.isDetectionAlertPermissionGranted === 'function') {
+    return nativeCapture.isDetectionAlertPermissionGranted();
   }
   if (Platform.OS !== 'android' || Number(Platform.Version) < 33) {
     return true;

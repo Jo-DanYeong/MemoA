@@ -66,3 +66,10 @@ test('이전 IPA와 Expo Go에서는 iPhone 후보와 알림 권한 API를 안�
   await expect(bridge.removeCapturedNotification('missing')).resolves.toBeUndefined();
   expect(await bridge.requestDetectionAlertPermission()).toBe(false);
 });
+
+test('Android는 시스템의 실제 알림 차단 상태를 확인한다', async () => {
+  const permission = jest.fn().mockResolvedValue(false);
+  const bridge = loadBridge('android', {isDetectionAlertPermissionGranted: permission});
+  expect(await bridge.detectionAlertPermissionGranted()).toBe(false);
+  expect(permission).toHaveBeenCalledTimes(1);
+});

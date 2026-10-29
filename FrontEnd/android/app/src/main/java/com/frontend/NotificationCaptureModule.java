@@ -1,6 +1,7 @@
 package com.frontend;
 
 import android.content.ComponentName;
+import android.app.NotificationManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -124,6 +125,12 @@ public class NotificationCaptureModule extends ReactContextBaseJavaModule {
             }
         }
         promise.resolve(granted);
+    }
+
+    @ReactMethod
+    public void isDetectionAlertPermissionGranted(Promise promise) {
+        NotificationManager manager = context.getSystemService(NotificationManager.class);
+        promise.resolve(manager != null && manager.areNotificationsEnabled());
     }
 
     @ReactMethod
